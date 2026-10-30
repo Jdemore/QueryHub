@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>QueryHub</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1 id="site-title">QueryHub</h1>
+        <p id="tagline"></p>
+      </div>
+      <div class="search">
+        <input id="search" type="search" placeholder="Search title, description, query text, tags (press / to focus)"
+               aria-label="Search queries" autocomplete="off">
+      </div>
+      <div class="header-actions">
+        <button id="add-btn" type="button" class="btn btn-primary">Add query</button>
+        <a id="repo-link" class="btn" href="#" target="_blank" rel="noopener noreferrer" hidden>Edit data on GitHub</a>
+        <button id="theme-toggle" type="button" class="btn" aria-label="Toggle light or dark theme">Theme</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div id="status-filter" class="chips" role="group" aria-label="Filter by status"></div>
+      <span id="result-count" class="count"></span>
+    </div>
+  </header>
+
+  <div id="unsaved" class="banner" hidden>
+    <span>You have unsaved changes stored only in this browser. Download the updated
+      <code>queries.json</code> and commit it to the <code>data/</code> folder to publish them.</span>
+    <div class="banner-actions">
+      <button id="download-btn" type="button" class="btn btn-primary">Download queries.json</button>
+      <button id="copy-json-btn" type="button" class="btn">Copy JSON</button>
+      <button id="discard-btn" type="button" class="btn btn-danger">Discard changes</button>
+    </div>
+  </div>
+
+  <main class="content">
+    <p id="app-error" class="error" hidden></p>
+    <section id="query-list" aria-live="polite"></section>
+  </main>
+
+  <dialog id="editor" aria-labelledby="editor-title">
+    <form id="editor-form" class="dialog-body">
+      <h2 id="editor-title">Add query</h2>
+      <input type="hidden" id="f-id">
+      <div class="field">
+        <label for="f-title">Title</label>
+        <input id="f-title" type="text" required maxlength="200" autocomplete="off">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f-status">Status</label>
+          <select id="f-status"></select>
+        </div>
+        <div class="field">
+          <label for="f-tags">Tags</label>
+          <input id="f-tags" type="text" placeholder="comma, separated, tags" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-description">Description</label>
+        <textarea id="f-description" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <label for="f-query">Query (KQL)</label>
+        <textarea id="f-query" class="code" rows="10" required spellcheck="false"></textarea>
+        <ul id="editor-lint" class="lint-list" aria-live="polite"></ul>
+      </div>
+      <div class="field">
+        <label for="f-sample">Sample results</label>
+        <textarea id="f-sample" class="code" rows="5" spellcheck="false"></textarea>
+        <p class="hint">Tab-separated, first line is the column header. Copying rows from the Log Analytics results grid and pasting here works.</p>
+      </div>
+      <div class="dialog-actions">
+        <button id="editor-cancel" type="button" class="btn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
