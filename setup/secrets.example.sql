@@ -15,12 +15,13 @@ insert into public.app_config (key, value)
 select 'invite_code_hash', extensions.crypt('PUT-INVITE-CODE-HERE', extensions.gen_salt('bf'))
 where not exists (select 1 from public.app_config where key = 'invite_code_hash');
 
--- Your own account (the one created from the Supabase dashboard) becomes admin,
--- and any queries that predate ownership are assigned to it.
+-- Make an account admin. Create the account first through the site's
+-- Sign up tab (using the invite code above), then put its username here.
+-- Any queries that predate ownership are assigned to it as well.
 update public.profiles
 set is_admin = true
-where id in (select id from auth.users where email = 'PUT-ADMIN-EMAIL-HERE');
+where username = 'PUT-ADMIN-USERNAME-HERE';
 
 update public.queries
-set owner_id = (select id from auth.users where email = 'PUT-ADMIN-EMAIL-HERE')
+set owner_id = (select id from public.profiles where username = 'PUT-ADMIN-USERNAME-HERE')
 where owner_id is null;

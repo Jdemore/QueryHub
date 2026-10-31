@@ -19,7 +19,9 @@ function toEmail(identifier) {
 function friendly(status, detail) {
   const d = detail.toLowerCase();
   if (d.includes('invalid login credentials')) return 'Wrong username or PIN.';
-  if (d.includes('database error saving new user')) return 'Sign-up was rejected. Check the invite code.';
+  if (d.includes('invalid invite code') || d.includes('database error saving new user')) return 'Invite code is wrong.';
+  if (d.includes('invalid username')) return 'Username must be 3-20 characters: letters, numbers, underscore.';
+  if (d.includes('is invalid') && d.includes('email')) return 'Supabase rejected the account address. Turn off "Confirm email" in Supabase (Authentication > Sign In / Providers).';
   if (d.includes('already registered') || d.includes('already been registered')) return 'That username is already taken.';
   if (d.includes('signups not allowed') || d.includes('signup is disabled')) return 'Sign-ups are turned off in Supabase (Authentication > Sign In / Providers).';
   if (d.includes('email not confirmed')) return 'Turn off "Confirm email" in Supabase (Authentication > Sign In / Providers).';

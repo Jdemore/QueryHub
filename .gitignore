@@ -1,2 +1,5 @@
-# Private SQL with the invite code and admin email. Never commit it.
+# Private SQL with the invite code and admin username. Never commit it.
 setup/secrets.sql
+
+# Python bytecode from runner.py
+__pycache__/

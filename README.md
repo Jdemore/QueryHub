@@ -31,31 +31,36 @@ Features:
    `setup/schema.sql` and run it. It contains no secrets and is safe to
    re-run.
 3. Copy `setup/secrets.example.sql` to `setup/secrets.sql` (git ignores
-   that name), fill in the invite code and your admin email, and run it the
-   same way. Do this after step 2 below has created your account. The
-   invite code is stored only as a bcrypt hash; the plaintext lives only in
-   your private copy. Never paste it into a committed file.
+   that name) and fill in the invite code. Leave the admin username for
+   step 3. Run it the same way. The invite code is stored only as a bcrypt
+   hash; the plaintext lives only in your private copy. Never paste it into
+   a committed file.
 4. Optional: run `setup/seed.sql` the same way to load the six starter
    queries.
 
-### 2. Create your admin account
-
-**Authentication > Users > Add user > Create new user.** Enter the email you
-put in `schema.sql` and a password. Tick **Auto Confirm User**. You sign in
-with that email (the sign-in box accepts an email as well as a username).
-
-If you created this account before running `schema.sql`, re-run the schema
-afterwards so it gets a profile and the admin flag.
-
-### 3. Allow invite-only sign-ups
+### 2. Auth settings
 
 **Authentication > Sign In / Providers**, under Email:
 
 - **Allow new users to sign up: ON.** The invite code enforced inside the
   database is what keeps strangers out, not this switch.
-- **Confirm email: OFF.** Accounts use synthetic addresses, so confirmation
-  mail can never arrive.
+- **Confirm email: OFF.** This one is required. Accounts use synthetic
+  addresses; with confirmation on, Supabase tries to mail them and rejects
+  the sign-up with "Email address ... is invalid".
 - Leave the minimum password length at 6 (the PIN length).
+
+### 3. Create your admin account
+
+Every account, including yours, is created through the site. Do not use
+"Add user" or "Invite user" in the dashboard: the invite-code trigger
+rejects those on purpose, with "Database error creating new user".
+
+1. Finish step 4 below so the site is live, open it, click **Sign in**,
+   then the **Sign up** tab. Enter your username, a 6-digit PIN, and the
+   invite code.
+2. Put that username in `setup/secrets.sql` where it says
+   `PUT-ADMIN-USERNAME-HERE` and run the file again. You are now admin, and
+   the starter queries are owned by you.
 
 ### 4. Point the site at the database
 
