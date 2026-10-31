@@ -2,9 +2,9 @@
 -- Safe to run on a fresh project AND on top of the v1 schema: it only adds.
 -- Run in the Supabase SQL editor (Dashboard > SQL Editor > New query).
 --
--- BEFORE RUNNING, replace the two placeholders:
---   CHANGE-ME-INVITE-CODE   the invite code people must enter to sign up
---   you@example.com         the email of your own (admin) account
+-- This file contains NO secrets and is safe to commit. After running it,
+-- run your private copy of setup/secrets.example.sql (saved as
+-- setup/secrets.sql, which git ignores) to set the invite code and admin.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -50,19 +50,12 @@ create table if not exists public.query_comments (
   created_at timestamptz not null default now()
 );
 
--- Private settings. RLS on, no policies: unreadable through the API.
+-- Private settings (invite code hash). RLS on, no policies: unreadable
+-- through the API. The value is set by setup/secrets.sql, never here.
 create table if not exists public.app_config (
   key   text primary key,
   value text not null
 );
-
--- ---------------------------------------------------------------------
--- Invite code (stored as a bcrypt hash) and admin account
--- ---------------------------------------------------------------------
-
-insert into public.app_config (key, value)
-values ('invite_code_hash', extensions.crypt('qhInvite2026kql', extensions.gen_salt('bf')))
-on conflict (key) do update set value = excluded.value;
 
 -- Give accounts that already exist (created from the dashboard) a profile.
 insert into public.profiles (id, username)
@@ -72,19 +65,10 @@ left join public.profiles p on p.id = u.id
 where p.id is null
 on conflict do nothing;
 
-update public.profiles
-set is_admin = true
-where id in (select id from auth.users where email = 'you@example.com');
-
--- Queries that predate ownership belong to the admin.
-update public.queries
-set owner_id = (select id from auth.users where email = 'you@example.com')
-where owner_id is null;
-
 -- ---------------------------------------------------------------------
 -- Sign-up trigger: enforces the invite code and creates the profile.
 -- Runs for every new auth user, so the check cannot be skipped by calling
--- the auth API directly.
+-- the auth API directly. While no invite code is set, sign-up is closed.
 -- ---------------------------------------------------------------------
 
 create or replace function public.handle_new_user()

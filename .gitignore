@@ -1,0 +1,2 @@
+# Private SQL with the invite code and admin email. Never commit it.
+setup/secrets.sql

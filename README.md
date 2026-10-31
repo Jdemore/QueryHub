@@ -28,15 +28,14 @@ Features:
    plan. Any name and region; the database password it asks for is not
    needed by the site, but keep it somewhere.
 2. Open **SQL Editor**, click **New query**, paste the contents of
-   `setup/schema.sql`. Replace the two placeholders near the top:
-   - `CHANGE-ME-INVITE-CODE`: the code people must enter to sign up. Make it
-     long and random (a password manager phrase is ideal). It is stored only
-     as a bcrypt hash.
-   - `you@example.com`: the email of your own account (see step 2). This
-     account becomes the admin.
-   Run it. It is safe to re-run later, for example to change the invite
-   code.
-3. Optional: run `setup/seed.sql` the same way to load the six starter
+   `setup/schema.sql` and run it. It contains no secrets and is safe to
+   re-run.
+3. Copy `setup/secrets.example.sql` to `setup/secrets.sql` (git ignores
+   that name), fill in the invite code and your admin email, and run it the
+   same way. Do this after step 2 below has created your account. The
+   invite code is stored only as a bcrypt hash; the plaintext lives only in
+   your private copy. Never paste it into a committed file.
+4. Optional: run `setup/seed.sql` the same way to load the six starter
    queries.
 
 ### 2. Create your admin account
@@ -96,8 +95,8 @@ opens the comment box so you can say what failed.
 **Comments.** Every card has a **Comments** section. Authors can delete their
 own comments; the admin can delete any.
 
-**Changing the invite code or adding admins.** Edit the values in
-`setup/schema.sql` and re-run it, or run directly in the SQL editor:
+**Changing the invite code or adding admins.** Edit your private
+`setup/secrets.sql` and re-run it, or run directly in the SQL editor:
 
 ```sql
 update public.app_config
@@ -106,6 +105,9 @@ where key = 'invite_code_hash';
 
 update public.profiles set is_admin = true where username = 'someone';
 ```
+
+If the code is ever exposed (for example committed by mistake), rotate it
+this way; the old one stops working immediately.
 
 **Removing a user.** Authentication > Users > delete. Their queries stay
 (shown as "by unknown"); their votes are removed; their comments stay with
@@ -194,7 +196,8 @@ talks to the same Supabase database as the published one.
 index.html                 page shell (all markup, no inline script)
 css/styles.css             layout; colors come from settings.json at runtime
 data/settings.json         Supabase connection, colors, fonts, labels
-setup/schema.sql           tables, invite-code trigger, row-level security
+setup/schema.sql           tables, invite-code trigger, row-level security (no secrets)
+setup/secrets.example.sql  template for the invite code and admin; copy to secrets.sql (gitignored)
 setup/seed.sql             optional starter queries
 setup/sample-queries.json  the starter queries as JSON (source of seed.sql)
 runner.py                  local dev server
