@@ -2,7 +2,7 @@
   "siteTitle": "QueryHub",
   "tagline": "KQL query library",
   "supabase": {
-    "url": "https://gkiqpfyawduewbxqocme.supabase.co/rest/v1/",
+    "url": "https://gkiqpfyawduewbxqocme.supabase.co",
     "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdraXFwZnlhd2R1ZXdieHFvY21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTQ5NzcsImV4cCI6MjEwOTAzMDk3N30.mW-3IRvaAIvmGCuqJZlM6cwIVcFjI8QZqw0S9_jNuA8"
   },
   "fontFamily": "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",

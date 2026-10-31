@@ -84,7 +84,8 @@ function cssValue(value, fallback) {
 // *.supabase.co to match the page's Content-Security-Policy.
 function supabaseConfig(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const url = typeof raw.url === 'string' ? raw.url.trim().replace(/\/+$/, '') : '';
+  // Accept the REST/auth endpoint URLs the dashboard shows; keep only the origin.
+  const url = typeof raw.url === 'string' ? raw.url.trim().replace(/\/(rest|auth)\/v1\/?$/, '').replace(/\/+$/, '') : '';
   const anonKey = typeof raw.anonKey === 'string' ? raw.anonKey.trim() : '';
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)) return null;
   if (!/^[A-Za-z0-9._-]{20,}$/.test(anonKey)) return null;
