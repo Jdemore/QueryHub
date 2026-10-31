@@ -9,9 +9,11 @@ import { normalizeDatabase, normalizeProfile } from './data.js';
 
 const QUERY_SELECT = [
   'id,title,status,tags,description,query,sample_results,updated_at,owner_id',
-  'owner:profiles(username)',
+  // "!column" hints pick the direct foreign key; without them PostgREST also
+  // sees the many-to-many path through query_votes and refuses to choose.
+  'owner:profiles!owner_id(username)',
   'votes:query_votes(user_id,vote)',
-  'comments:query_comments(id,user_id,body,created_at,author:profiles(username))',
+  'comments:query_comments(id,user_id,body,created_at,author:profiles!user_id(username))',
 ].join(',');
 
 export function createDb(cfg) {
