@@ -2,7 +2,7 @@
 // can be blocked (private windows, strict settings) and the site must still work.
 
 const KEYS = {
-  working: 'queryhub.working',
+  session: 'queryhub.session',
   theme: 'queryhub.theme',
 };
 
@@ -24,10 +24,15 @@ function write(key, value) {
   }
 }
 
-// The "working copy" is the edited query list that has not been committed yet.
-export const getWorkingCopy = () => read(KEYS.working);
-export const setWorkingCopy = (queries) => write(KEYS.working, queries);
-export const clearWorkingCopy = () => write(KEYS.working, null);
+// Supabase auth session for this browser.
+export function getSession() {
+  const s = read(KEYS.session);
+  if (!s || typeof s !== 'object') return null;
+  if (typeof s.accessToken !== 'string' || typeof s.refreshToken !== 'string') return null;
+  if (typeof s.expiresAt !== 'number') return null;
+  return { accessToken: s.accessToken, refreshToken: s.refreshToken, expiresAt: s.expiresAt, email: String(s.email || '') };
+}
+export const setSession = (session) => write(KEYS.session, session);
 
 export function getThemePreference() {
   const value = read(KEYS.theme);

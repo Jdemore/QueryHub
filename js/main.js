@@ -1,21 +1,27 @@
-// Entry point: loads settings and data, wires the controls, owns app state.
+// Entry point: loads settings, talks to the database, wires the controls,
+// owns app state. Reads are public; writes need a signed-in editor.
 
 import { loadSettings, applyTheme, resolveThemeMode, STATUS_KEYS } from './config.js';
-import { loadQueries, normalizeDatabase, normalizeQuery, serializeDatabase, today } from './data.js';
+import { normalizeQuery } from './data.js';
 import { filterQueries } from './search.js';
 import { renderList } from './render.js';
 import { createEditor } from './editor.js';
+import { createSignInDialog } from './signin.js';
+import { createAuth } from './auth.js';
+import { createDb } from './db.js';
 import * as storage from './storage.js';
-import { $, el, clear, copyText } from './dom.js';
+import { $, el, clear } from './dom.js';
 
 const state = {
   settings: null,
   queries: [],
-  dirty: false,
   themeMode: 'light',
   filter: { text: '', status: 'all' },
 };
+let auth = null;
+let db = null;
 let editor = null;
+let signInDialog = null;
 
 async function init() {
   try {
@@ -23,38 +29,32 @@ async function init() {
     state.themeMode = resolveThemeMode(storage.getThemePreference());
     applyTheme(state.settings, state.themeMode);
     applySiteText(state.settings);
-
-    const fromFile = await loadQueries();
-    const working = storage.getWorkingCopy();
-    const workingClean = working ? normalizeDatabase(working) : null;
-    // Once the edited copy has been committed, the file matches it and the
-    // local copy is no longer needed.
-    if (workingClean && JSON.stringify(workingClean) !== JSON.stringify(fromFile)) {
-      state.queries = workingClean;
-      state.dirty = true;
-    } else {
-      storage.clearWorkingCopy();
-      state.queries = fromFile;
+    if (!state.settings.supabase) {
+      throw new Error('Add your Supabase "url" and "anonKey" to data/settings.json (see README).');
     }
+    auth = createAuth(state.settings.supabase);
+    db = createDb(state.settings.supabase);
+    await loadData();
   } catch (err) {
     showError(err);
     return;
   }
 
   editor = createEditor($('#editor'), state.settings, saveQuery);
+  signInDialog = createSignInDialog($('#signin'), { onSignIn: signIn, onSignOut: signOut });
   wireControls();
   render();
+}
+
+async function loadData() {
+  state.queries = await db.list(await auth.getAccessToken());
+  setSync(auth.isSignedIn() ? `Signed in as ${auth.email()}.` : 'Read-only. Sign in to add or edit queries.');
 }
 
 function applySiteText(settings) {
   document.title = settings.siteTitle;
   $('#site-title').textContent = settings.siteTitle;
   $('#tagline').textContent = settings.tagline;
-  const link = $('#repo-link');
-  if (settings.repoUrl) {
-    link.href = `${settings.repoUrl}/edit/${settings.defaultBranch}/data/queries.json`;
-    link.hidden = false;
-  }
 }
 
 function wireControls() {
@@ -77,10 +77,15 @@ function wireControls() {
   for (const key of STATUS_KEYS) chips.append(statusChip(key, state.settings.statuses[key].label));
 
   $('#theme-toggle').addEventListener('click', toggleTheme);
-  $('#add-btn').addEventListener('click', () => editor.open(null));
-  $('#download-btn').addEventListener('click', downloadJson);
-  $('#copy-json-btn').addEventListener('click', (e) => copyText(serializeDatabase(state.queries), e.currentTarget));
-  $('#discard-btn').addEventListener('click', discardChanges);
+  $('#add-btn').addEventListener('click', () => {
+    if (requireSignIn()) editor.open(null);
+  });
+  $('#signin-btn').addEventListener('click', () => signInDialog.open(auth.email()));
+
+  // Coming back to the tab (for example on another PC) reloads from the database.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
 }
 
 function statusChip(key, label) {
@@ -105,7 +110,9 @@ function isTyping(target) {
 function render() {
   const visible = filterQueries(state.queries, state.filter);
   renderList($('#query-list'), visible, state.settings, {
-    onEdit: (q) => editor.open(q),
+    onEdit: (q) => {
+      if (requireSignIn()) editor.open(q);
+    },
     onDelete: deleteQuery,
     onTagClick: (tag) => {
       const search = $('#search');
@@ -115,54 +122,75 @@ function render() {
     },
   });
   $('#result-count').textContent = `${visible.length} of ${state.queries.length} queries`;
-  $('#unsaved').hidden = !state.dirty;
+  $('#signin-btn').textContent = auth.isSignedIn() ? 'Signed in' : 'Sign in';
   for (const chip of $('#status-filter').children) {
     chip.classList.toggle('active', chip.dataset.status === state.filter.status);
   }
 }
 
+function requireSignIn() {
+  if (auth.isSignedIn()) return true;
+  signInDialog.open('');
+  return false;
+}
+
+async function signIn(email, password) {
+  await auth.signIn(email, password); // throws so the dialog can show the message
+  await refresh();
+}
+
+async function signOut() {
+  await auth.signOut();
+  await refresh();
+}
+
+async function refresh() {
+  try {
+    await loadData();
+  } catch (err) {
+    setSync(`Could not load queries. ${err.message}`, true);
+  }
+  render();
+}
+
 function saveQuery(raw) {
-  const q = normalizeQuery({ ...raw, updated: today() });
+  const q = normalizeQuery(raw);
   if (!q) return;
-  const index = state.queries.findIndex((x) => x.id === q.id);
-  if (index === -1) state.queries.unshift(q);
-  else state.queries[index] = q;
-  markDirty();
+  write((token) => db.upsert(token, q), 'Saved');
 }
 
 function deleteQuery(q) {
+  if (!requireSignIn()) return;
   if (!window.confirm(`Delete "${q.title}"?`)) return;
-  state.queries = state.queries.filter((x) => x.id !== q.id);
-  markDirty();
+  write((token) => db.remove(token, q.id), 'Deleted');
 }
 
-function markDirty() {
-  state.dirty = true;
-  storage.setWorkingCopy(state.queries);
-  render();
-}
-
-async function discardChanges() {
-  if (!window.confirm('Discard all local changes and reload the published queries?')) return;
-  storage.clearWorkingCopy();
+// Runs one write, then reloads the list so this device also picks up
+// anything another device changed in the meantime.
+async function write(operation, doneWord) {
+  if (!requireSignIn()) return;
+  setSync('Saving...');
   try {
-    state.queries = await loadQueries();
+    const token = await auth.getAccessToken();
+    if (!token) {
+      setSync('Your session expired. Sign in again.', true);
+      render();
+      signInDialog.open('');
+      return;
+    }
+    await operation(token);
+    state.queries = await db.list(token);
+    setSync(`${doneWord} at ${new Date().toLocaleTimeString()}.`);
   } catch (err) {
-    showError(err);
-    return;
+    setSync(`Save failed. ${err.message}`, true);
   }
-  state.dirty = false;
   render();
 }
 
-function downloadJson() {
-  const blob = new Blob([serializeDatabase(state.queries)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = el('a', { href: url, download: 'queries.json' });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+function setSync(message, isError = false) {
+  const box = $('#sync-status');
+  box.textContent = message;
+  box.classList.toggle('is-error', isError);
 }
 
 function toggleTheme() {

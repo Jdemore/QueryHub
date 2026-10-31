@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'self'">
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; font-src 'self'; base-uri 'none'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
   <title>QueryHub</title>
@@ -23,25 +23,16 @@
       </div>
       <div class="header-actions">
         <button id="add-btn" type="button" class="btn btn-primary">Add query</button>
-        <a id="repo-link" class="btn" href="#" target="_blank" rel="noopener noreferrer" hidden>Edit data on GitHub</a>
+        <button id="signin-btn" type="button" class="btn">Sign in</button>
         <button id="theme-toggle" type="button" class="btn" aria-label="Toggle light or dark theme">Theme</button>
       </div>
     </div>
     <div class="filters">
       <div id="status-filter" class="chips" role="group" aria-label="Filter by status"></div>
+      <span id="sync-status" class="sync" aria-live="polite"></span>
       <span id="result-count" class="count"></span>
     </div>
   </header>
-
-  <div id="unsaved" class="banner" hidden>
-    <span>You have unsaved changes stored only in this browser. Download the updated
-      <code>queries.json</code> and commit it to the <code>data/</code> folder to publish them.</span>
-    <div class="banner-actions">
-      <button id="download-btn" type="button" class="btn btn-primary">Download queries.json</button>
-      <button id="copy-json-btn" type="button" class="btn">Copy JSON</button>
-      <button id="discard-btn" type="button" class="btn btn-danger">Discard changes</button>
-    </div>
-  </div>
 
   <main class="content">
     <p id="app-error" class="error" hidden></p>
@@ -83,6 +74,28 @@
       <div class="dialog-actions">
         <button id="editor-cancel" type="button" class="btn">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="signin" aria-labelledby="signin-title">
+    <form id="signin-form" class="dialog-body">
+      <h2 id="signin-title">Sign in</h2>
+      <p id="signin-user" class="hint" hidden></p>
+      <p class="hint signin-fields">Use the editor account you created in Supabase. You stay signed in on this browser.</p>
+      <div class="field signin-fields">
+        <label for="f-email">Email</label>
+        <input id="f-email" type="email" autocomplete="username" required>
+      </div>
+      <div class="field signin-fields">
+        <label for="f-password">Password</label>
+        <input id="f-password" type="password" autocomplete="current-password" required>
+      </div>
+      <p id="signin-error" class="error" hidden></p>
+      <div class="dialog-actions">
+        <button id="signin-signout" type="button" class="btn btn-danger" hidden>Sign out</button>
+        <button id="signin-cancel" type="button" class="btn">Cancel</button>
+        <button id="signin-submit" type="submit" class="btn btn-primary">Sign in</button>
       </div>
     </form>
   </dialog>

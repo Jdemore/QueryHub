@@ -1,7 +1,7 @@
-// Loading, validating, and serializing the query "database" (data/queries.json).
-// Every record is normalized here so the rest of the app can trust its shape.
+// Validation of query records. Every record from the database or the editor
+// is normalized here so the rest of the app can trust its shape.
 
-import { DATA_URL, STATUS_KEYS } from './config.js';
+import { STATUS_KEYS } from './config.js';
 
 const MAX_TITLE = 200;
 const MAX_TEXT = 20000;
@@ -9,13 +9,7 @@ const MAX_TAGS = 20;
 const MAX_ROWS = 200;
 const MAX_CELL = 2000;
 
-export async function loadQueries() {
-  const res = await fetch(DATA_URL, { cache: 'no-cache' });
-  if (!res.ok) throw new Error(`Could not load ${DATA_URL} (HTTP ${res.status})`);
-  return normalizeDatabase(await res.json());
-}
-
-// Accepts either { version, queries: [...] } or a bare array.
+// Accepts either { queries: [...] } or a bare array of raw records.
 export function normalizeDatabase(raw) {
   const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.queries) ? raw.queries : []);
   const out = [];
@@ -84,14 +78,6 @@ function text(value, max) {
 export function newId() {
   if (globalThis.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return 'q-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-}
-
-export function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export function serializeDatabase(queries) {
-  return JSON.stringify({ version: 1, queries }, null, 2) + '\n';
 }
 
 // Sample results are edited as tab-separated text: first line is the header.

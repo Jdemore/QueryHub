@@ -1,5 +1,5 @@
 // Small DOM helpers. All text is set through textContent / text nodes,
-// never innerHTML, so data from queries.json can never become markup.
+// never innerHTML, so data from the database can never become markup.
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);

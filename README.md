@@ -1,8 +1,10 @@
 # QueryHub
 
 A small, fast, dependency-free website for keeping KQL queries where you can
-read them from any device. Hosted on GitHub Pages; the "database" is a JSON
-file in this repo, so every change is versioned by git.
+read and edit them from any device. The page is static (GitHub Pages); the
+data lives in a free hosted Postgres database (Supabase) that the page talks
+to directly. Saves are instant and every device sees them on its next load or
+when you switch back to the tab.
 
 Features:
 
@@ -12,69 +14,79 @@ Features:
   status filter. Press `/` to jump to the search box.
 - KQL syntax highlighting and a heuristic syntax checker (see below).
 - Optional sample results shown as a table under each query.
-- Add / edit / delete queries in the browser, then download the updated JSON
-  and commit it.
+- Add / edit / delete in the browser; anyone can read, only you can write.
 - Light and dark theme; all colors and fonts live in `data/settings.json`.
 
-## Hosting on GitHub Pages
+## One-time setup
 
-1. Push this repo to GitHub.
-2. In the repo go to **Settings > Pages**, set **Source** to "Deploy from a
-   branch", pick `main` and the `/ (root)` folder, and save.
-3. After a minute the site is live at `https://<user>.github.io/QueryHub/`.
+### 1. Create the database (about 10 minutes)
 
-No build step, no npm, no external CDNs. The `.nojekyll` file tells Pages to
-serve the files exactly as they are.
+1. Sign up at <https://supabase.com> and create a new project on the free
+   plan. Any name and region; the database password it asks for is not
+   needed by the site, but keep it somewhere.
+2. Open **SQL Editor**, click **New query**, paste the contents of
+   `setup/schema.sql`. **Replace `you@example.com`** in the `is_editor`
+   function with the email you will sign in with. Run it.
+3. Optional: run `setup/seed.sql` the same way to load the six starter
+   queries.
 
-## Adding or editing queries
+### 2. Create your sign-in account and lock down sign-ups
 
-The data lives in `data/queries.json`. There are two ways to change it.
+1. **Authentication > Users > Add user > Create new user.** Enter the same
+   email you put in `schema.sql` and a strong password. Tick **Auto Confirm
+   User**.
+2. **Authentication > Sign In / Providers**, under Email, turn **off**
+   "Allow new users to sign up". This stops anyone else from creating an
+   account. (The `is_editor` check in the schema blocks writes from other
+   accounts anyway, so this is belt and braces.)
 
-**In the browser (recommended):**
+### 3. Point the site at the database
 
-1. Click **Add query** (or **Edit** on a card), fill in the form, click **Save**.
-2. A banner appears saying you have unsaved changes. They are kept in this
-   browser's local storage so a refresh does not lose them, but no other device
-   can see them yet.
-3. Click **Download queries.json** (or **Copy JSON**).
-4. Commit the file to `data/queries.json` in the repo. The quickest way is the
-   **Edit data on GitHub** button in the header, which opens the file in
-   GitHub's web editor: paste the copied JSON, commit, done.
-5. Once Pages redeploys and the published file matches your local copy, the
-   banner disappears automatically.
+1. **Project Settings > API** (also called Data API). Copy the **Project URL**
+   and the **anon / public** key.
+2. Put them in `data/settings.json`:
 
-**Directly in the JSON:** add an object to the `queries` array:
+   ```json
+   "supabase": {
+     "url": "https://abcdefghijklmnop.supabase.co",
+     "anonKey": "eyJ..."
+   }
+   ```
 
-```json
-{
-  "id": "any-unique-id",
-  "title": "Failed sign-ins by user",
-  "status": "works",
-  "tags": ["entra", "signinlogs"],
-  "description": "What it does and any caveats.",
-  "query": "SigninLogs\n| where ResultType != \"0\"\n| summarize count() by UserPrincipalName",
-  "sampleResults": {
-    "columns": ["UserPrincipalName", "count_"],
-    "rows": [["jdoe@contoso.com", "14"]]
-  },
-  "updated": "2026-10-30"
-}
-```
+   The anon key is designed to be public. It only grants what the row-level
+   security policies allow, which is read for everyone and write for signed-in
+   editors.
+3. Commit and push. Enable Pages if you have not: **Settings > Pages**,
+   Source "Deploy from a branch", `main`, `/ (root)`.
 
-`status` must be one of `works`, `mostly`, `broken`. `sampleResults` and
-`tags` are optional. Records with a missing title or query are skipped.
+### 4. Sign in on each device
+
+Open the site, click **Sign in**, enter the email and password. The session
+is kept in that browser's local storage and refreshes itself, so you do this
+once per browser.
+
+## Day-to-day use
+
+Click **Add query** or **Edit** / **Delete** on a card. **Save** writes to the
+database immediately; the status line under the search box confirms it with
+a time. The page reloads the list after every save and whenever the tab
+regains focus, so another PC shows the change as soon as you switch to it.
 
 In the editor, sample results are entered as tab-separated text with the
 header on the first line. Copying rows from the Log Analytics results grid
 and pasting them in produces exactly that format.
+
+Free-plan note: Supabase pauses a project after about a week with no
+requests. Opening the site counts as a request, so normal use keeps it
+awake. If it does pause, the site shows an error and you restore it with one
+click in the Supabase dashboard; nothing is lost.
 
 ## Settings
 
 `data/settings.json` controls:
 
 - `siteTitle`, `tagline`
-- `repoUrl` and `defaultBranch` (used for the Edit data on GitHub link;
-  leave `repoUrl` empty to hide the link)
+- `supabase.url` and `supabase.anonKey`
 - `fontFamily`, `monoFontFamily`, `baseFontSize`, `codeFontSize`
 - `statuses` labels and colors
 - `theme.light` and `theme.dark` palettes, including `syntax` colors for
@@ -103,19 +115,26 @@ result means "structurally plausible", not "will run".
 
 ## Security notes
 
-- No server, no login, no third-party scripts or fonts. Everything is served
-  from this repo over HTTPS by GitHub Pages.
-- A strict Content-Security-Policy blocks inline scripts, `eval`, and any
-  external resource.
+- No third-party scripts or fonts. The page is served from this repo over
+  HTTPS, and the only network calls go to your Supabase project. The
+  Content-Security-Policy pins `connect-src` to `*.supabase.co` and blocks
+  inline scripts and `eval`.
+- Write access is enforced by the database, not the page: row-level security
+  allows inserts, updates, and deletes only for a signed-in user whose email
+  is in the `is_editor` list. Someone who reads the anon key out of the page
+  gets exactly what an anonymous visitor gets: read access.
 - Query data is only ever rendered through `textContent` and DOM nodes, never
   `innerHTML`, so a query containing `<script>` is displayed as text.
-- Every record and every setting is validated and length-limited on load.
-- Nothing is sent anywhere. Edits stay in your browser until you commit them.
+- Every record and every setting is validated and length-limited both in the
+  page and by the table's check constraints.
+- The session token is stored in the browser's local storage. Sign out on a
+  shared machine. You can change the password or delete the user in the
+  Supabase dashboard at any time.
 
 ## Running locally
 
 ES modules need an HTTP server (opening `index.html` directly via `file://`
-will not load the data). From the repo folder:
+will not load the settings). From the repo folder:
 
 ```
 python runner.py
@@ -123,24 +142,31 @@ python runner.py
 
 This serves the site on `http://localhost:8000/` (or the next free port),
 opens your browser, and disables caching so edits show up on refresh.
-Pass a port to use a different one: `python runner.py 9000`.
+Pass a port to use a different one: `python runner.py 9000`. The local page
+talks to the same Supabase database as the published one.
 
 ## Layout
 
 ```
-index.html           page shell (all markup, no inline script)
-css/styles.css       layout; colors come from settings.json at runtime
-data/queries.json    the query database
-data/settings.json   colors, fonts, labels, repo link
-js/main.js           entry point, app state, event wiring
-js/config.js         settings loading, validation, theme application
-js/data.js           query loading, validation, serialization, TSV parsing
-js/search.js         text + status filtering
-js/tokenizer.js      KQL tokenizer shared by highlighter and linter
-js/highlight.js      syntax highlighting
-js/lint.js           heuristic syntax checker
-js/render.js         cards, result tables, lint output
-js/editor.js         add/edit dialog
-js/storage.js        localStorage wrapper (working copy, theme)
-js/dom.js            element helpers, clipboard
+index.html                 page shell (all markup, no inline script)
+css/styles.css             layout; colors come from settings.json at runtime
+data/settings.json         Supabase connection, colors, fonts, labels
+setup/schema.sql           table, constraints, row-level security policies
+setup/seed.sql             optional starter queries
+setup/sample-queries.json  the starter queries as JSON (source of seed.sql)
+runner.py                  local dev server
+js/main.js                 entry point, app state, event wiring
+js/db.js                   read/write the queries table via Supabase REST
+js/auth.js                 email/password sign-in and token refresh
+js/signin.js               sign-in dialog
+js/config.js               settings loading, validation, theme application
+js/data.js                 record validation, TSV parsing
+js/search.js               text + status filtering
+js/tokenizer.js            KQL tokenizer shared by highlighter and linter
+js/highlight.js            syntax highlighting
+js/lint.js                 heuristic syntax checker
+js/render.js               cards, result tables, lint output
+js/editor.js               add/edit dialog
+js/storage.js              localStorage wrapper (session, theme)
+js/dom.js                  element helpers, clipboard
 ```

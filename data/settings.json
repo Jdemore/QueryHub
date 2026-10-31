@@ -1,16 +1,27 @@
 {
   "siteTitle": "QueryHub",
   "tagline": "KQL query library",
-  "repoUrl": "https://github.com/Jdemore/QueryHub",
-  "defaultBranch": "main",
+  "supabase": {
+    "url": "https://gkiqpfyawduewbxqocme.supabase.co/rest/v1/",
+    "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdraXFwZnlhd2R1ZXdieHFvY21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTQ5NzcsImV4cCI6MjEwOTAzMDk3N30.mW-3IRvaAIvmGCuqJZlM6cwIVcFjI8QZqw0S9_jNuA8"
+  },
   "fontFamily": "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
   "monoFontFamily": "Consolas, 'Cascadia Code', 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
   "baseFontSize": "15px",
   "codeFontSize": "13px",
   "statuses": {
-    "works":  { "label": "Fully works",  "color": "#1f8a4c" },
-    "mostly": { "label": "Mostly works", "color": "#c98a00" },
-    "broken": { "label": "Doesn't work", "color": "#c8352e" }
+    "works": {
+      "label": "Fully works",
+      "color": "#1f8a4c"
+    },
+    "mostly": {
+      "label": "Mostly works",
+      "color": "#c98a00"
+    },
+    "broken": {
+      "label": "Doesn't work",
+      "color": "#c8352e"
+    }
   },
   "theme": {
     "light": {

@@ -2,7 +2,6 @@
 // properties. Values from the JSON are checked before touching the DOM.
 
 export const SETTINGS_URL = 'data/settings.json';
-export const DATA_URL = 'data/queries.json';
 export const STATUS_KEYS = ['works', 'mostly', 'broken'];
 
 const DEFAULT_STATUSES = {
@@ -31,8 +30,7 @@ function normalizeSettings(raw) {
   return {
     siteTitle: str(s.siteTitle, 'QueryHub', 60),
     tagline: str(s.tagline, '', 120),
-    repoUrl: githubRepoUrl(s.repoUrl),
-    defaultBranch: /^[\w./-]{1,100}$/.test(s.defaultBranch || '') ? s.defaultBranch : 'main',
+    supabase: supabaseConfig(s.supabase),
     fontFamily: cssValue(s.fontFamily, 'system-ui, sans-serif'),
     monoFontFamily: cssValue(s.monoFontFamily, 'Consolas, Menlo, monospace'),
     baseFontSize: cssValue(s.baseFontSize, '15px'),
@@ -82,10 +80,15 @@ function cssValue(value, fallback) {
   return isSafeCss(value) ? value : fallback;
 }
 
-function githubRepoUrl(value) {
-  if (typeof value !== 'string') return '';
-  const match = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(value.trim());
-  return match ? `https://github.com/${match[1]}/${match[2]}` : '';
+// Returns { url, anonKey } or null when not configured. The URL is pinned to
+// *.supabase.co to match the page's Content-Security-Policy.
+function supabaseConfig(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const url = typeof raw.url === 'string' ? raw.url.trim().replace(/\/+$/, '') : '';
+  const anonKey = typeof raw.anonKey === 'string' ? raw.anonKey.trim() : '';
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)) return null;
+  if (!/^[A-Za-z0-9._-]{20,}$/.test(anonKey)) return null;
+  return { url, anonKey };
 }
 
 const kebab = (name) => name.replace(/[A-Z]/g, (ch) => '-' + ch.toLowerCase());
