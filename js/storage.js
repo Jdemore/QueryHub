@@ -29,8 +29,8 @@ export function getSession() {
   const s = read(KEYS.session);
   if (!s || typeof s !== 'object') return null;
   if (typeof s.accessToken !== 'string' || typeof s.refreshToken !== 'string') return null;
-  if (typeof s.expiresAt !== 'number') return null;
-  return { accessToken: s.accessToken, refreshToken: s.refreshToken, expiresAt: s.expiresAt, email: String(s.email || '') };
+  if (typeof s.expiresAt !== 'number' || typeof s.userId !== 'string') return null;
+  return { accessToken: s.accessToken, refreshToken: s.refreshToken, expiresAt: s.expiresAt, userId: s.userId };
 }
 export const setSession = (session) => write(KEYS.session, session);
 

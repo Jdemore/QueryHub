@@ -1,13 +1,21 @@
-// Reads and writes the "queries" table through Supabase's REST API
-// (PostgREST). Reads use the public anon key; writes send the signed-in
-// user's access token, and the database's row-level security decides.
+// Reads and writes through Supabase's REST API (PostgREST). Reads use the
+// public anon key; writes send the signed-in user's access token and the
+// database's row-level security decides what is allowed.
+//
+// Writes ask for the affected rows back and treat "zero rows" as "not
+// allowed", because PostgREST answers 2xx even when RLS filtered everything.
 
-import { normalizeDatabase } from './data.js';
+import { normalizeDatabase, normalizeProfile } from './data.js';
 
-const COLUMNS = 'id,title,status,tags,description,query,sample_results,updated_at';
+const QUERY_SELECT = [
+  'id,title,status,tags,description,query,sample_results,updated_at,owner_id',
+  'owner:profiles(username)',
+  'votes:query_votes(user_id,vote)',
+  'comments:query_comments(id,user_id,body,created_at,author:profiles(username))',
+].join(',');
 
 export function createDb(cfg) {
-  const table = `${cfg.url}/rest/v1/queries`;
+  const rest = (path) => `${cfg.url}/rest/v1/${path}`;
 
   const headers = (token, extra = {}) => ({
     apikey: cfg.anonKey,
@@ -15,37 +23,100 @@ export function createDb(cfg) {
     ...extra,
   });
 
+  const jsonHeaders = (token, prefer) => headers(token, { 'Content-Type': 'application/json', Prefer: prefer });
+
   async function request(url, options) {
     const res = await fetch(url, options);
     if (!res.ok) throw await describe(res);
     return res;
   }
 
+  // Runs a write that returns the affected rows; throws if none were.
+  async function affecting(url, options) {
+    const res = await request(url, options);
+    const rows = await res.json().catch(() => []);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      const err = new Error('Not allowed. You can only change your own posts.');
+      err.status = 403;
+      throw err;
+    }
+    return rows;
+  }
+
   return {
     async list(token) {
-      const res = await request(`${table}?select=${COLUMNS}&order=updated_at.desc`, {
-        headers: headers(token),
-        cache: 'no-store',
-      });
+      const url = rest(`queries?select=${QUERY_SELECT}&order=updated_at.desc&comments.order=created_at.asc`);
+      const res = await request(url, { headers: headers(token), cache: 'no-store' });
       const rows = await res.json();
       return normalizeDatabase(Array.isArray(rows) ? rows.map(fromRow) : []);
     },
 
-    async upsert(token, q) {
-      await request(table, {
+    async profile(token, userId) {
+      const url = rest(`profiles?select=id,username,is_admin&id=eq.${encodeURIComponent(userId)}`);
+      const res = await request(url, { headers: headers(token), cache: 'no-store' });
+      const rows = await res.json();
+      return Array.isArray(rows) && rows[0] ? normalizeProfile(rows[0]) : null;
+    },
+
+    async usernameTaken(username) {
+      const url = rest(`profiles?select=id&username=eq.${encodeURIComponent(username)}`);
+      const res = await request(url, { headers: headers(null), cache: 'no-store' });
+      const rows = await res.json();
+      return Array.isArray(rows) && rows.length > 0;
+    },
+
+    async insertQuery(token, q, ownerId) {
+      await request(rest('queries'), {
         method: 'POST',
-        headers: headers(token, {
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates,return=minimal',
-        }),
-        body: JSON.stringify([toRow(q)]),
+        headers: jsonHeaders(token, 'return=minimal'),
+        body: JSON.stringify([{ ...toRow(q), owner_id: ownerId }]),
       });
     },
 
-    async remove(token, id) {
-      await request(`${table}?id=eq.${encodeURIComponent(id)}`, {
+    async updateQuery(token, q) {
+      await affecting(rest(`queries?id=eq.${encodeURIComponent(q.id)}`), {
+        method: 'PATCH',
+        headers: jsonHeaders(token, 'return=representation'),
+        body: JSON.stringify(toRow(q)),
+      });
+    },
+
+    async deleteQuery(token, id) {
+      await affecting(rest(`queries?id=eq.${encodeURIComponent(id)}`), {
         method: 'DELETE',
-        headers: headers(token, { Prefer: 'return=minimal' }),
+        headers: headers(token, { Prefer: 'return=representation' }),
+      });
+    },
+
+    // vote is 'works', 'broken', or null to remove.
+    async setVote(token, queryId, userId, vote) {
+      const where = `query_id=eq.${encodeURIComponent(queryId)}&user_id=eq.${encodeURIComponent(userId)}`;
+      if (vote === null) {
+        await affecting(rest(`query_votes?${where}`), {
+          method: 'DELETE',
+          headers: headers(token, { Prefer: 'return=representation' }),
+        });
+        return;
+      }
+      await request(rest('query_votes'), {
+        method: 'POST',
+        headers: jsonHeaders(token, 'resolution=merge-duplicates,return=minimal'),
+        body: JSON.stringify([{ query_id: queryId, user_id: userId, vote }]),
+      });
+    },
+
+    async addComment(token, queryId, userId, body) {
+      await request(rest('query_comments'), {
+        method: 'POST',
+        headers: jsonHeaders(token, 'return=minimal'),
+        body: JSON.stringify([{ query_id: queryId, user_id: userId, body }]),
+      });
+    },
+
+    async deleteComment(token, id) {
+      await affecting(rest(`query_comments?id=eq.${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+        headers: headers(token, { Prefer: 'return=representation' }),
       });
     },
   };
@@ -61,6 +132,16 @@ function fromRow(row) {
     query: row.query,
     sampleResults: row.sample_results,
     updated: typeof row.updated_at === 'string' ? row.updated_at.slice(0, 10) : '',
+    ownerId: row.owner_id,
+    ownerName: row.owner && row.owner.username,
+    votes: Array.isArray(row.votes) ? row.votes.map((v) => ({ userId: v.user_id, vote: v.vote })) : [],
+    comments: Array.isArray(row.comments) ? row.comments.map((c) => ({
+      id: c.id,
+      userId: c.user_id,
+      author: c.author && c.author.username,
+      body: c.body,
+      createdAt: c.created_at,
+    })) : [],
   };
 }
 
@@ -85,8 +166,8 @@ async function describe(res) {
   } catch { /* no body */ }
   const text = {
     401: 'Not signed in, or the session expired. Sign in again.',
-    403: 'Not allowed. Sign in with an account listed as an editor in setup/schema.sql.',
-    404: 'The "queries" table was not found. Run setup/schema.sql in the Supabase SQL editor.',
+    403: 'Not allowed. You can only change your own posts.',
+    404: 'A table is missing. Run setup/schema.sql in the Supabase SQL editor.',
   }[res.status] || 'Database error.';
   const err = new Error(`${text} (HTTP ${res.status}${detail ? ': ' + detail : ''})`);
   err.status = res.status;

@@ -1,12 +1,12 @@
 // Entry point: loads settings, talks to the database, wires the controls,
-// owns app state. Reads are public; writes need a signed-in editor.
+// owns app state. Reads are public; writes need a signed-in account.
 
 import { loadSettings, applyTheme, resolveThemeMode, STATUS_KEYS } from './config.js';
 import { normalizeQuery } from './data.js';
 import { filterQueries } from './search.js';
 import { renderList } from './render.js';
 import { createEditor } from './editor.js';
-import { createSignInDialog } from './signin.js';
+import { createAccountDialog } from './account.js';
 import { createAuth } from './auth.js';
 import { createDb } from './db.js';
 import * as storage from './storage.js';
@@ -15,13 +15,15 @@ import { $, el, clear } from './dom.js';
 const state = {
   settings: null,
   queries: [],
+  user: null, // { id, username, isAdmin } when signed in
   themeMode: 'light',
   filter: { text: '', status: 'all' },
+  openCommentsFor: '',
 };
 let auth = null;
 let db = null;
 let editor = null;
-let signInDialog = null;
+let accountDialog = null;
 
 async function init() {
   try {
@@ -34,6 +36,7 @@ async function init() {
     }
     auth = createAuth(state.settings.supabase);
     db = createDb(state.settings.supabase);
+    await loadUser();
     await loadData();
   } catch (err) {
     showError(err);
@@ -41,14 +44,25 @@ async function init() {
   }
 
   editor = createEditor($('#editor'), state.settings, saveQuery);
-  signInDialog = createSignInDialog($('#signin'), { onSignIn: signIn, onSignOut: signOut });
+  accountDialog = createAccountDialog($('#account'), { onSignIn: signIn, onSignUp: signUp, onSignOut: signOut });
   wireControls();
   render();
 }
 
+async function loadUser() {
+  state.user = null;
+  const token = await auth.getAccessToken();
+  if (!token) return;
+  state.user = await db.profile(token, auth.userId());
+  if (!state.user) {
+    // Session exists but no profile row (for example the account was deleted).
+    await auth.signOut();
+  }
+}
+
 async function loadData() {
   state.queries = await db.list(await auth.getAccessToken());
-  setSync(auth.isSignedIn() ? `Signed in as ${auth.email()}.` : 'Read-only. Sign in to add or edit queries.');
+  setSync(state.user ? `Signed in as @${state.user.username}.` : 'Read-only. Sign in to add queries, vote, or comment.');
 }
 
 function applySiteText(settings) {
@@ -80,7 +94,7 @@ function wireControls() {
   $('#add-btn').addEventListener('click', () => {
     if (requireSignIn()) editor.open(null);
   });
-  $('#signin-btn').addEventListener('click', () => signInDialog.open(auth.email()));
+  $('#account-btn').addEventListener('click', () => accountDialog.open(state.user));
 
   // Coming back to the tab (for example on another PC) reloads from the database.
   document.addEventListener('visibilitychange', () => {
@@ -114,33 +128,48 @@ function render() {
       if (requireSignIn()) editor.open(q);
     },
     onDelete: deleteQuery,
+    onVote: vote,
+    onComment: addComment,
+    onDeleteComment: deleteComment,
+    onSignInPrompt: () => requireSignIn(),
     onTagClick: (tag) => {
       const search = $('#search');
       search.value = tag;
       state.filter.text = tag;
       render();
     },
-  });
+  }, { user: state.user, openCommentsFor: state.openCommentsFor });
+  state.openCommentsFor = '';
   $('#result-count').textContent = `${visible.length} of ${state.queries.length} queries`;
-  $('#signin-btn').textContent = auth.isSignedIn() ? 'Signed in' : 'Sign in';
+  $('#account-btn').textContent = state.user ? `@${state.user.username}` : 'Sign in';
   for (const chip of $('#status-filter').children) {
     chip.classList.toggle('active', chip.dataset.status === state.filter.status);
   }
 }
 
 function requireSignIn() {
-  if (auth.isSignedIn()) return true;
-  signInDialog.open('');
+  if (state.user) return true;
+  accountDialog.open(null);
   return false;
 }
 
-async function signIn(email, password) {
-  await auth.signIn(email, password); // throws so the dialog can show the message
+async function signIn(identifier, pin) {
+  await auth.signIn(identifier, pin); // throws so the dialog can show the message
+  await loadUser();
+  await refresh();
+}
+
+async function signUp(username, pin, inviteCode) {
+  const name = username.trim().toLowerCase();
+  if (await db.usernameTaken(name)) throw new Error('That username is already taken.');
+  await auth.signUp(name, pin, inviteCode);
+  await loadUser();
   await refresh();
 }
 
 async function signOut() {
   await auth.signOut();
+  state.user = null;
   await refresh();
 }
 
@@ -156,13 +185,34 @@ async function refresh() {
 function saveQuery(raw) {
   const q = normalizeQuery(raw);
   if (!q) return;
-  write((token) => db.upsert(token, q), 'Saved');
+  const existing = state.queries.find((x) => x.id === q.id);
+  write((token) => (existing ? db.updateQuery(token, q) : db.insertQuery(token, q, state.user.id)), 'Saved');
 }
 
 function deleteQuery(q) {
   if (!requireSignIn()) return;
   if (!window.confirm(`Delete "${q.title}"?`)) return;
-  write((token) => db.remove(token, q.id), 'Deleted');
+  write((token) => db.deleteQuery(token, q.id), 'Deleted');
+}
+
+function vote(q, value) {
+  if (!requireSignIn()) return;
+  // Flagging something as broken opens the thread so the reason can be added.
+  if (value === 'broken') state.openCommentsFor = q.id;
+  write((token) => db.setVote(token, q.id, state.user.id, value), value ? 'Vote saved' : 'Vote removed');
+}
+
+function addComment(q, body) {
+  if (!requireSignIn()) return;
+  state.openCommentsFor = q.id;
+  write((token) => db.addComment(token, q.id, state.user.id, body), 'Comment posted');
+}
+
+function deleteComment(q, comment) {
+  if (!requireSignIn()) return;
+  if (!window.confirm('Delete this comment?')) return;
+  state.openCommentsFor = q.id;
+  write((token) => db.deleteComment(token, comment.id), 'Comment deleted');
 }
 
 // Runs one write, then reloads the list so this device also picks up
@@ -173,9 +223,10 @@ async function write(operation, doneWord) {
   try {
     const token = await auth.getAccessToken();
     if (!token) {
+      state.user = null;
       setSync('Your session expired. Sign in again.', true);
       render();
-      signInDialog.open('');
+      accountDialog.open(null);
       return;
     }
     await operation(token);

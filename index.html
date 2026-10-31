@@ -23,7 +23,7 @@
       </div>
       <div class="header-actions">
         <button id="add-btn" type="button" class="btn btn-primary">Add query</button>
-        <button id="signin-btn" type="button" class="btn">Sign in</button>
+        <button id="account-btn" type="button" class="btn">Sign in</button>
         <button id="theme-toggle" type="button" class="btn" aria-label="Toggle light or dark theme">Theme</button>
       </div>
     </div>
@@ -78,26 +78,62 @@
     </form>
   </dialog>
 
-  <dialog id="signin" aria-labelledby="signin-title">
-    <form id="signin-form" class="dialog-body">
-      <h2 id="signin-title">Sign in</h2>
-      <p id="signin-user" class="hint" hidden></p>
-      <p class="hint signin-fields">Use the editor account you created in Supabase. You stay signed in on this browser.</p>
-      <div class="field signin-fields">
-        <label for="f-email">Email</label>
-        <input id="f-email" type="email" autocomplete="username" required>
+  <dialog id="account" aria-labelledby="account-title">
+    <div class="dialog-body">
+      <h2 id="account-title">Account</h2>
+
+      <div id="account-tabs" class="tabs" role="tablist">
+        <button id="tab-signin" type="button" class="tab active" role="tab" aria-selected="true">Sign in</button>
+        <button id="tab-signup" type="button" class="tab" role="tab" aria-selected="false">Sign up</button>
       </div>
-      <div class="field signin-fields">
-        <label for="f-password">Password</label>
-        <input id="f-password" type="password" autocomplete="current-password" required>
+
+      <form id="signin-form" class="stack">
+        <div class="field">
+          <label for="f-username">Username</label>
+          <input id="f-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </div>
+        <div class="field">
+          <label for="f-pin">PIN</label>
+          <input id="f-pin" type="password" inputmode="numeric" autocomplete="current-password" required>
+        </div>
+        <p id="signin-error" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button id="signin-cancel" type="button" class="btn">Cancel</button>
+          <button id="signin-submit" type="submit" class="btn btn-primary">Sign in</button>
+        </div>
+      </form>
+
+      <form id="signup-form" class="stack" hidden>
+        <p class="hint">You need the invite code from the site owner. Pick a username (letters, numbers, underscore) and a 6-digit PIN. No email required.</p>
+        <div class="field">
+          <label for="f-new-username">Username</label>
+          <input id="f-new-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+                 pattern="[A-Za-z0-9_]{3,20}" title="3-20 characters: letters, numbers, underscore" required>
+        </div>
+        <div class="field">
+          <label for="f-new-pin">6-digit PIN</label>
+          <input id="f-new-pin" type="password" inputmode="numeric" autocomplete="new-password"
+                 pattern="[0-9]{6}" title="Exactly 6 digits" required>
+        </div>
+        <div class="field">
+          <label for="f-invite">Invite code</label>
+          <input id="f-invite" type="password" autocomplete="off" required>
+        </div>
+        <p id="signup-error" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button id="signup-cancel" type="button" class="btn">Cancel</button>
+          <button id="signup-submit" type="submit" class="btn btn-primary">Create account</button>
+        </div>
+      </form>
+
+      <div id="signedin-panel" class="stack" hidden>
+        <p id="signedin-user" class="hint"></p>
+        <div class="dialog-actions">
+          <button id="signedin-signout" type="button" class="btn btn-danger">Sign out</button>
+          <button id="signedin-close" type="button" class="btn">Close</button>
+        </div>
       </div>
-      <p id="signin-error" class="error" hidden></p>
-      <div class="dialog-actions">
-        <button id="signin-signout" type="button" class="btn btn-danger" hidden>Sign out</button>
-        <button id="signin-cancel" type="button" class="btn">Cancel</button>
-        <button id="signin-submit" type="submit" class="btn btn-primary">Sign in</button>
-      </div>
-    </form>
+    </div>
   </dialog>
 
   <script type="module" src="js/main.js"></script>

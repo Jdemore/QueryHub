@@ -1,4 +1,4 @@
-// Validation of query records. Every record from the database or the editor
+// Validation of records coming from the database or the editor. Everything
 // is normalized here so the rest of the app can trust its shape.
 
 import { STATUS_KEYS } from './config.js';
@@ -8,6 +8,10 @@ const MAX_TEXT = 20000;
 const MAX_TAGS = 20;
 const MAX_ROWS = 200;
 const MAX_CELL = 2000;
+const MAX_COMMENT = 4000;
+const ID_PATTERN = /^[\w-]{1,64}$/;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/;
+export const VOTE_KEYS = ['works', 'broken'];
 
 // Accepts either { queries: [...] } or a bare array of raw records.
 export function normalizeDatabase(raw) {
@@ -31,7 +35,7 @@ export function normalizeQuery(raw) {
   const query = text(raw.query, MAX_TEXT);
   if (!title || !query) return null;
   return {
-    id: typeof raw.id === 'string' && /^[\w-]{1,64}$/.test(raw.id) ? raw.id : newId(),
+    id: id(raw.id) || newId(),
     title,
     status: STATUS_KEYS.includes(raw.status) ? raw.status : 'mostly',
     tags: normalizeTags(raw.tags),
@@ -39,7 +43,60 @@ export function normalizeQuery(raw) {
     query,
     sampleResults: normalizeSample(raw.sampleResults),
     updated: /^\d{4}-\d{2}-\d{2}$/.test(raw.updated || '') ? raw.updated : '',
+    ownerId: id(raw.ownerId),
+    ownerName: username(raw.ownerName),
+    votes: normalizeVotes(raw.votes),
+    comments: normalizeComments(raw.comments),
   };
+}
+
+export function normalizeProfile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const userId = id(raw.id);
+  const name = username(raw.username);
+  if (!userId || !name) return null;
+  return { id: userId, username: name, isAdmin: raw.is_admin === true };
+}
+
+function normalizeVotes(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (!v || typeof v !== 'object') continue;
+    const userId = id(v.userId);
+    if (!userId || seen.has(userId) || !VOTE_KEYS.includes(v.vote)) continue;
+    seen.add(userId);
+    out.push({ userId, vote: v.vote });
+  }
+  return out;
+}
+
+function normalizeComments(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const c of raw) {
+    if (!c || typeof c !== 'object') continue;
+    const commentId = id(c.id);
+    const body = text(c.body, MAX_COMMENT);
+    if (!commentId || !body) continue;
+    out.push({
+      id: commentId,
+      userId: id(c.userId),
+      author: username(c.author) || 'deleted user',
+      body,
+      createdAt: typeof c.createdAt === 'string' && !Number.isNaN(Date.parse(c.createdAt)) ? c.createdAt : '',
+    });
+  }
+  return out;
+}
+
+function id(value) {
+  return typeof value === 'string' && ID_PATTERN.test(value) ? value : '';
+}
+
+function username(value) {
+  return typeof value === 'string' && USERNAME_PATTERN.test(value) ? value : '';
 }
 
 function normalizeTags(raw) {
@@ -78,6 +135,18 @@ function text(value, max) {
 export function newId() {
   if (globalThis.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return 'q-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+// Tally of community votes plus the current user's own vote.
+export function voteSummary(q, userId) {
+  let works = 0;
+  let broken = 0;
+  let mine = null;
+  for (const v of q.votes) {
+    if (v.vote === 'works') works += 1; else broken += 1;
+    if (userId && v.userId === userId) mine = v.vote;
+  }
+  return { works, broken, mine };
 }
 
 // Sample results are edited as tab-separated text: first line is the header.
