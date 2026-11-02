@@ -58,6 +58,7 @@ const PAREN_KEYWORDS = new Set([
 const TWO_CHAR_OPS = ['==', '!=', '=~', '!~', '<=', '>=', '=>', '..'];
 const ONE_CHAR_OPS = '=<>+-*/%!';
 const PUNCT = '(),;:{}[].';
+const WHITESPACE = /[\s\u200b\u200c\u200d\u2060\ufeff]/;
 const IDENT_START = /[A-Za-z_$]/;
 const IDENT_CHAR = /[A-Za-z0-9_]/;
 const DIGIT = /[0-9]/;
@@ -85,10 +86,11 @@ export function tokenize(src) {
     const ch = src[i];
     const next = src[i + 1];
 
-    // Whitespace
-    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+    // Whitespace, including non-breaking and zero-width characters that
+    // copying from web pages or the Azure portal often inserts.
+    if (WHITESPACE.test(ch)) {
       let j = i + 1;
-      while (j < n && (src[j] === ' ' || src[j] === '\t' || src[j] === '\n' || src[j] === '\r')) j += 1;
+      while (j < n && WHITESPACE.test(src[j])) j += 1;
       push('ws', j);
       continue;
     }
@@ -210,7 +212,7 @@ function stringPrefixLength(src, i) {
 
 function classifyWord(word, src, end) {
   let k = end;
-  while (k < src.length && (src[k] === ' ' || src[k] === '\t')) k += 1;
+  while (k < src.length && src[k] !== '\n' && WHITESPACE.test(src[k])) k += 1;
   const followedByParen = src[k] === '(';
   if (TYPES.has(word)) return followedByParen ? 'function' : 'type';
   if (TABULAR_OPERATORS.has(word) || KEYWORDS.has(word)) {
