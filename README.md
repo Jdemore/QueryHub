@@ -1,17 +1,23 @@
 # QueryHub
 
-A small, fast, dependency-free website for a team to share KQL queries. The
-page is static (GitHub Pages); the data lives in a free hosted Postgres
-database (Supabase) that the page talks to directly. Saves are instant and
-every device sees them on its next load or when you switch back to the tab.
+A small, fast, dependency-free website for a team to share queries and
+scripts: KQL, SQL, PowerShell, and Command Prompt. The page is static
+(GitHub Pages); the data lives in a free hosted Postgres database (Supabase)
+that the page talks to directly. Saves are instant and every device sees
+them on its next load or when you switch back to the tab.
 
 Features:
 
-- Title, description, tags, query text, and the author's status (Fully works /
+- Title, description, tags, code, and the author's status (Fully works /
   Mostly works / Doesn't work) with a color per status.
-- Full-text search across title, description, query text, and tags, plus a
-  status filter. Press `/` to jump to the search box.
-- KQL syntax highlighting and a heuristic syntax checker (see below).
+- A language per entry: KQL (.kql), SQL (.sql), PowerShell (.ps1), Command
+  Prompt (.cmd). KQL entries can also name a platform: Sentinel Logs or
+  Defender Threat Hunting.
+- Full-text search across title, description, code, tags, language, and
+  platform, plus language and status filters. Press `/` to jump to the
+  search box.
+- Syntax highlighting and a heuristic syntax checker for every language
+  (see below).
 - Optional sample results shown as a table under each query.
 - Accounts with a username and a 6-digit PIN, invite-only, no email needed.
 - Authors edit and delete their own queries; the admin can edit anything.
@@ -54,7 +60,7 @@ Features:
 Every account, including yours, is created through the site. Do not use
 "Add user" or "Invite user" in the dashboard: the invite-code trigger
 rejects those on purpose, with "Database error creating new user".
-
+r
 1. Finish step 4 below so the site is live, open it, click **Sign in**,
    then the **Sign up** tab. Enter your username, a 6-digit PIN, and the
    invite code.
@@ -137,23 +143,105 @@ click in the Supabase dashboard; nothing is lost.
 Values are validated before use (no `url(...)`, braces, or semicolons), and
 unknown keys are ignored.
 
-## Syntax checker
+## Languages and syntax checkers
 
-The checker in `js/lint.js` is a lightweight heuristic, not the real Kusto
-parser. It reports:
+Each language lives in one file under `js/languages/` that exports a
+tokenizer (used for highlighting) and a checker. The checkers are
+lightweight heuristics, not real parsers. They catch structural mistakes
+and the slips that are common in each language. None of them know your
+tables, columns, cmdlets, or programs, so a clean result means
+"structurally plausible", not "will run".
 
-- unbalanced or mismatched brackets, unterminated strings
+Every language reports unbalanced brackets, unterminated strings and block
+comments, and curly "smart" quotes pasted from documents or chat.
+
+**KQL** (`kql.js`)
+
 - empty pipe segments, queries that start with `|` or with an operator such
   as `where`
-- unknown operators after `|`, with a "did you mean" suggestion for typos
+- unknown operators after `|`, with a "did you mean" suggestion
 - trailing commas and clauses that end in `by`, `and`, `on`, etc.
 - `let` statements missing `;`, or a query that ends after a `let`
 - `where` clauses using a single `=`
 - `take`/`limit` without a count, `sort`/`top` without `by`, `join` without
   `on`, unknown `render` chart types
+- platform hints: `TimeGenerated` on Defender hunting tables, or `Timestamp`
+  on Sentinel tables, when the entry's platform says otherwise
 
-It does not know your tables, columns, or function signatures, so a clean
-result means "structurally plausible", not "will run".
+**SQL** (`sql.js`, T-SQL flavored and tolerant of other dialects)
+
+- statements that start with a misspelled or misplaced keyword (`SELCT`,
+  `FROM ...`)
+- trailing or doubled commas, an empty `SELECT` list
+- clauses out of order (`WHERE` after `GROUP BY`), `GROUP`/`ORDER` without
+  `BY`, statements that end mid-clause
+- `= NULL` comparisons, `JOIN` without `ON`
+- `UPDATE` or `DELETE` with no `WHERE`
+
+**PowerShell** (`powershell.js`)
+
+- C-style operators (`==`, `!=`, `<=`, `>=`) and wordy ones (`-equals`)
+- `=`, `>` or `<` inside an `if`/`while` condition, misspelled operators
+  such as `-conatins`
+- `if`/`while` without parentheses, `else if` instead of `elseif`, `try`,
+  `else`, `finally`, `do` without `{`
+- pipelines that end in `|`, misspelled keywords such as `fucntion`
+
+**Command Prompt** (`cmd.js`)
+
+- unbalanced `( )` blocks, `else` on its own line
+- `goto` / `call :label` pointing at a label that does not exist
+- `if` using `=` instead of `==`, or with no comparison at all
+- `for` missing `in` or `do`, or using `%i` where a script needs `%%i`
+- `set NAME = value` (the space becomes part of the name)
+- misspelled built-ins such as `ehco`
+
+**Adding a language:** write `js/languages/<name>.js` exporting
+`tokenize(src)` and `lint(src, options)` (use the helpers in `shared.js`),
+add it to the registry in `js/languages/index.js`, and add its key to the
+`queries_language_check` constraint in `setup/schema.sql`.
+
+## Upgrading an existing database
+
+`setup/schema.sql` is written to be re-run. After pulling a version that
+adds columns (languages and platforms were added this way), run it again
+**before** deploying the new site. Existing entries default to KQL. Until
+it is run, the site shows "The database is missing newer columns".
+
+You can paste it into the Supabase SQL editor, or apply it from your
+machine without opening the dashboard:
+
+```
+python setup/apply.py
+```
+
+This runs `schema.sql`, then your private `secrets.sql` if it exists. Pass
+file paths to run something else, for example
+`python setup/apply.py setup/seed.sql`. It needs a Supabase personal access
+token, created once at <https://supabase.com/dashboard/account/tokens> and
+saved in `setup/.supabase-token` (git ignores that file) or in the
+`SUPABASE_ACCESS_TOKEN` environment variable. That token can manage your
+whole Supabase account, so treat it like a password and never commit it.
+
+## Backups
+
+Supabase's free plan has no automatic backups, so take your own:
+
+```
+python setup/backup.py
+```
+
+This saves every entry, vote, comment, and username to a timestamped JSON
+file in `backups/` (ignored by git). It needs no token because that content
+is publicly readable. Each file is read back and checked before it counts,
+and only then are older files pruned, so the folder always holds the three
+newest verified backups. A run that fails, or that finds the database empty
+when the last backup was not, writes nothing and deletes nothing. Pass a
+folder path to save somewhere else.
+
+Accounts and PINs are not included; they live in Supabase's private auth
+tables. There is no restore script yet. A backup file holds the rows of
+each table as plain JSON, ready to be re-inserted.
 
 ## Security notes
 
@@ -204,6 +292,8 @@ data/settings.json         Supabase connection, colors, fonts, labels
 setup/schema.sql           tables, invite-code trigger, row-level security (no secrets)
 setup/secrets.example.sql  template for the invite code and admin; copy to secrets.sql (gitignored)
 setup/seed.sql             optional starter queries
+setup/apply.py             run the SQL files against Supabase from your machine
+setup/backup.py            save all content to backups/, keeping the 3 newest
 setup/sample-queries.json  the starter queries as JSON (source of seed.sql)
 runner.py                  local dev server
 js/main.js                 entry point, app state, event wiring
@@ -212,10 +302,14 @@ js/auth.js                 username/PIN sign-in, sign-up, token refresh
 js/account.js              sign in / sign up / sign out dialog
 js/config.js               settings loading, validation, theme application
 js/data.js                 record validation, vote tally, TSV parsing
-js/search.js               text + status filtering
-js/tokenizer.js            KQL tokenizer shared by highlighter and linter
-js/highlight.js            syntax highlighting
-js/lint.js                 heuristic syntax checker
+js/search.js               text, language, and status filtering
+js/highlight.js            syntax highlighting (any language)
+js/languages/index.js      language registry: labels, extensions, platforms
+js/languages/shared.js     scanner, message collector, bracket and typo checks
+js/languages/kql.js        KQL tokenizer and checker
+js/languages/sql.js        SQL tokenizer and checker
+js/languages/powershell.js PowerShell tokenizer and checker
+js/languages/cmd.js        Command Prompt tokenizer and checker
 js/render.js               cards, votes, comments, result tables, lint output
 js/editor.js               add/edit dialog
 js/storage.js              localStorage wrapper (session, theme)

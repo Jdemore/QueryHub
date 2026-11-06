@@ -20,6 +20,7 @@
   --syntax-number: #098658;
   --syntax-comment: #6a737d;
   --syntax-pipe: #1b1f24;
+  --syntax-variable: #8a5a00;
   --font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono-font-family: Consolas, "Cascadia Code", Menlo, Monaco, "Courier New", monospace;
   --base-font-size: 15px;
@@ -110,6 +111,12 @@ body {
 
 .chip { border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; }
 .chip.active { background: var(--chip-color, var(--accent)); border-color: var(--chip-color, var(--accent)); color: #fff; }
+.chips + .chips { padding-left: 12px; border-left: 1px solid var(--border); }
+.chips[hidden] { display: none; }
+.chips { align-items: center; }
+/* Selected tags: filled on cards, and listed in the filter bar with a remove mark. */
+.tag.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.tag-chip::after { content: " \00d7"; }
 .chip.status-works { --chip-color: var(--status-works); }
 .chip.status-mostly { --chip-color: var(--status-mostly); }
 .chip.status-broken { --chip-color: var(--status-broken); }
@@ -189,6 +196,7 @@ body {
 .tok-number { color: var(--syntax-number); }
 .tok-comment { color: var(--syntax-comment); font-style: italic; }
 .tok-pipe { color: var(--syntax-pipe); font-weight: 700; }
+.tok-variable { color: var(--syntax-variable); }
 
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -328,6 +336,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 }
 .comments > .link-btn { margin-top: 8px; }
 .byline { color: var(--muted); }
+
+/* Language and platform badges */
+.lang-badge, .platform-badge {
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lang-badge { background: var(--accent); color: var(--accent-text); }
+.platform-badge { border: 1px solid var(--accent); color: var(--accent); }
+.field-row.even { grid-template-columns: 1fr 1fr; }
 
 /* Account dialog tabs */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }

@@ -3,15 +3,15 @@
 // no HTML strings anywhere.
 
 import { el, append, clear, copyText } from './dom.js';
-import { highlightKql } from './highlight.js';
-import { lintKql } from './lint.js';
+import { highlight } from './highlight.js';
+import { getLanguage, platformLabel, lint } from './languages/index.js';
 import { voteSummary } from './data.js';
 
-// view: { user: {id, username, isAdmin} | null, openCommentsFor: id | '' }
+// view: { user: {id, username, isAdmin} | null, openCommentsFor: id | '', activeTags: [tag] }
 export function renderList(container, queries, settings, handlers, view) {
   clear(container);
   if (queries.length === 0) {
-    container.append(el('p', { class: 'empty', text: 'No queries match your search.' }));
+    container.append(el('p', { class: 'empty', text: 'No entries match your search and filters.' }));
     return;
   }
   for (const q of queries) container.append(renderCard(q, settings, handlers, view));
@@ -31,11 +31,23 @@ function renderCard(q, settings, handlers, view) {
     el('span', { class: `badge status-${q.status}`, text: statusLabel, title: 'Status set by the author' }),
   ]);
 
+  const language = getLanguage(q.language);
+  const platform = platformLabel(q.language, q.platform);
+
   const meta = el('div', { class: 'card-meta' }, [
-    ...q.tags.map((tag) => el('button', {
-      type: 'button', class: 'tag', text: tag, title: `Search for tag "${tag}"`,
-      onClick: () => handlers.onTagClick(tag),
-    })),
+    el('span', { class: 'lang-badge', text: language.label, title: `${language.label} (${language.extension})` }),
+    platform ? el('span', { class: 'platform-badge', text: platform }) : null,
+    ...q.tags.map((tag) => {
+      const active = view.activeTags.includes(tag);
+      return el('button', {
+        type: 'button',
+        class: active ? 'tag active' : 'tag',
+        text: tag,
+        title: active ? `Stop filtering by "${tag}"` : `Filter by "${tag}"`,
+        'aria-pressed': active ? 'true' : 'false',
+        onClick: () => handlers.onTagClick(tag),
+      });
+    }),
     el('span', { class: 'byline', text: q.ownerName ? `by @${q.ownerName}` : 'by unknown' }),
     q.updated ? el('span', { class: 'updated', text: `Updated ${q.updated}` }) : null,
   ]);
@@ -43,15 +55,15 @@ function renderCard(q, settings, handlers, view) {
   const description = q.description ? el('p', { class: 'card-desc', text: q.description }) : null;
 
   const code = el('pre', { class: 'code-block' }, [
-    el('code', { class: 'kql' }, [highlightKql(q.query)]),
+    el('code', {}, [highlight(q.query, q.language)]),
   ]);
 
   const actions = el('div', { class: 'card-actions' }, [
-    el('button', { type: 'button', class: 'btn', text: 'Copy query', onClick: (e) => copyText(q.query, e.currentTarget) }),
+    el('button', { type: 'button', class: 'btn', text: 'Copy', onClick: (e) => copyText(q.query, e.currentTarget) }),
     el('button', {
       type: 'button', class: 'btn', text: 'Check syntax',
       onClick: () => {
-        renderLintMessages(lintOut, lintKql(q.query));
+        renderLintMessages(lintOut, lint(q.query, q.language, q.platform));
         lintOut.hidden = false;
       },
     }),
@@ -168,7 +180,7 @@ function renderSampleResults(sample) {
 export function renderLintMessages(container, messages) {
   clear(container);
   if (messages.length === 0) {
-    container.append(el('li', { class: 'lint-ok', text: 'No problems found. (Heuristic check: table and column names are not validated.)' }));
+    container.append(el('li', { class: 'lint-ok', text: 'No problems found. (Heuristic check: names of tables, columns, and commands are not validated.)' }));
     return;
   }
   for (const m of messages) {

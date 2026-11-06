@@ -3,6 +3,7 @@
 
 import { loadSettings, applyTheme, resolveThemeMode, STATUS_KEYS } from './config.js';
 import { normalizeQuery } from './data.js';
+import { LANGUAGES, LANGUAGE_KEYS } from './languages/index.js';
 import { filterQueries } from './search.js';
 import { renderList } from './render.js';
 import { createEditor } from './editor.js';
@@ -17,7 +18,7 @@ const state = {
   queries: [],
   user: null, // { id, username, isAdmin } when signed in
   themeMode: 'light',
-  filter: { text: '', status: 'all' },
+  filter: { text: '', status: 'all', language: 'all', tags: [] },
   openCommentsFor: '',
 };
 let auth = null;
@@ -85,10 +86,14 @@ function wireControls() {
     }
   });
 
-  const chips = $('#status-filter');
-  clear(chips);
-  chips.append(statusChip('all', 'All'));
-  for (const key of STATUS_KEYS) chips.append(statusChip(key, state.settings.statuses[key].label));
+  buildChips($('#language-filter'), 'language', [
+    ['all', 'All languages'],
+    ...LANGUAGE_KEYS.map((key) => [key, LANGUAGES[key].label]),
+  ]);
+  buildChips($('#status-filter'), 'status', [
+    ['all', 'Any status'],
+    ...STATUS_KEYS.map((key) => [key, state.settings.statuses[key].label]),
+  ]);
 
   $('#theme-toggle').addEventListener('click', toggleTheme);
   $('#add-btn').addEventListener('click', () => {
@@ -102,17 +107,62 @@ function wireControls() {
   });
 }
 
-function statusChip(key, label) {
-  return el('button', {
-    type: 'button',
-    class: `chip status-${key}`,
-    text: label,
-    dataset: { status: key },
-    onClick: () => {
-      state.filter.status = key;
-      render();
-    },
-  });
+// Fills a chip group. field is the state.filter key the chips control.
+function buildChips(container, field, entries) {
+  clear(container);
+  for (const [key, label] of entries) {
+    container.append(el('button', {
+      type: 'button',
+      class: `chip ${field}-${key}`,
+      text: label,
+      dataset: { value: key },
+      onClick: () => {
+        state.filter[field] = key;
+        render();
+      },
+    }));
+  }
+}
+
+// Tags are a multi-select filter: clicking one adds it, clicking again removes it.
+function toggleTag(tag) {
+  const tags = state.filter.tags;
+  state.filter.tags = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
+  render();
+}
+
+// Shows the selected tags in the filter bar so they can be removed even
+// when no card is left to click on.
+function renderTagFilter() {
+  const box = $('#tag-filter');
+  clear(box);
+  box.hidden = state.filter.tags.length === 0;
+  for (const tag of state.filter.tags) {
+    box.append(el('button', {
+      type: 'button',
+      class: 'chip tag-chip active',
+      text: tag,
+      title: `Stop filtering by "${tag}"`,
+      onClick: () => toggleTag(tag),
+    }));
+  }
+  if (state.filter.tags.length > 1) {
+    box.append(el('button', {
+      type: 'button',
+      class: 'link-btn',
+      text: 'Clear tags',
+      onClick: () => {
+        state.filter.tags = [];
+        render();
+      },
+    }));
+  }
+}
+
+function markActiveChip(container, value) {
+  for (const chip of container.children) {
+    chip.classList.toggle('active', chip.dataset.value === value);
+  }
 }
 
 function isTyping(target) {
@@ -132,19 +182,14 @@ function render() {
     onComment: addComment,
     onDeleteComment: deleteComment,
     onSignInPrompt: () => requireSignIn(),
-    onTagClick: (tag) => {
-      const search = $('#search');
-      search.value = tag;
-      state.filter.text = tag;
-      render();
-    },
-  }, { user: state.user, openCommentsFor: state.openCommentsFor });
+    onTagClick: toggleTag,
+  }, { user: state.user, openCommentsFor: state.openCommentsFor, activeTags: state.filter.tags });
+  renderTagFilter();
   state.openCommentsFor = '';
-  $('#result-count').textContent = `${visible.length} of ${state.queries.length} queries`;
+  $('#result-count').textContent = `${visible.length} of ${state.queries.length} entries`;
   $('#account-btn').textContent = state.user ? `@${state.user.username}` : 'Sign in';
-  for (const chip of $('#status-filter').children) {
-    chip.classList.toggle('active', chip.dataset.status === state.filter.status);
-  }
+  markActiveChip($('#language-filter'), state.filter.language);
+  markActiveChip($('#status-filter'), state.filter.status);
 }
 
 function requireSignIn() {

@@ -1,5 +1,11 @@
 # Private SQL with the invite code and admin username. Never commit it.
 setup/secrets.sql
 
+# Supabase personal access token used by setup/apply.py. Never commit it.
+setup/.supabase-token
+
+# Local database backups written by setup/backup.py
+backups/
+
 # Python bytecode from runner.py
 __pycache__/

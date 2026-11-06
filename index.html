@@ -18,7 +18,7 @@
         <p id="tagline"></p>
       </div>
       <div class="search">
-        <input id="search" type="search" placeholder="Search title, description, query text, tags (press / to focus)"
+        <input id="search" type="search" placeholder="Search title, description, code, tags, language (press / to focus)"
                aria-label="Search queries" autocomplete="off">
       </div>
       <div class="header-actions">
@@ -28,7 +28,9 @@
       </div>
     </div>
     <div class="filters">
+      <div id="language-filter" class="chips" role="group" aria-label="Filter by language"></div>
       <div id="status-filter" class="chips" role="group" aria-label="Filter by status"></div>
+      <div id="tag-filter" class="chips" role="group" aria-label="Active tag filters" hidden></div>
       <span id="sync-status" class="sync" aria-live="polite"></span>
       <span id="result-count" class="count"></span>
     </div>
@@ -47,6 +49,16 @@
         <label for="f-title">Title</label>
         <input id="f-title" type="text" required maxlength="200" autocomplete="off">
       </div>
+      <div class="field-row even">
+        <div class="field">
+          <label for="f-language">Language</label>
+          <select id="f-language"></select>
+        </div>
+        <div class="field" id="platform-field">
+          <label for="f-platform">Platform</label>
+          <select id="f-platform"></select>
+        </div>
+      </div>
       <div class="field-row">
         <div class="field">
           <label for="f-status">Status</label>
@@ -62,7 +74,7 @@
         <textarea id="f-description" rows="3"></textarea>
       </div>
       <div class="field">
-        <label for="f-query">Query (KQL)</label>
+        <label for="f-query" id="f-query-label">Code</label>
         <textarea id="f-query" class="code" rows="10" required spellcheck="false"></textarea>
         <ul id="editor-lint" class="lint-list" aria-live="polite"></ul>
       </div>

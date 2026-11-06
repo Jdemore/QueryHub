@@ -1,6 +1,6 @@
 {
   "siteTitle": "QueryHub",
-  "tagline": "KQL query library",
+  "tagline": "Query and script library",
   "supabase": {
     "url": "https://gkiqpfyawduewbxqocme.supabase.co",
     "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdraXFwZnlhd2R1ZXdieHFvY21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTQ5NzcsImV4cCI6MjEwOTAzMDk3N30.mW-3IRvaAIvmGCuqJZlM6cwIVcFjI8QZqw0S9_jNuA8"
@@ -41,7 +41,8 @@
         "string": "#a31515",
         "number": "#098658",
         "comment": "#6a737d",
-        "pipe": "#1b1f24"
+        "pipe": "#1b1f24",
+        "variable": "#8a5a00"
       }
     },
     "dark": {
@@ -61,7 +62,8 @@
         "string": "#f5a38f",
         "number": "#8fe0a6",
         "comment": "#7d8793",
-        "pipe": "#e6e8eb"
+        "pipe": "#e6e8eb",
+        "variable": "#f0c674"
       }
     }
   }

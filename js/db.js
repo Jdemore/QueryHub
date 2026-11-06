@@ -8,7 +8,7 @@
 import { normalizeDatabase, normalizeProfile } from './data.js';
 
 const QUERY_SELECT = [
-  'id,title,status,tags,description,query,sample_results,updated_at,owner_id',
+  'id,title,language,platform,status,tags,description,query,sample_results,updated_at,owner_id',
   // "!column" hints pick the direct foreign key; without them PostgREST also
   // sees the many-to-many path through query_votes and refuses to choose.
   'owner:profiles!owner_id(username)',
@@ -128,6 +128,8 @@ function fromRow(row) {
   return {
     id: row.id,
     title: row.title,
+    language: row.language,
+    platform: row.platform,
     status: row.status,
     tags: row.tags,
     description: row.description,
@@ -151,6 +153,8 @@ function toRow(q) {
   return {
     id: q.id,
     title: q.title,
+    language: q.language,
+    platform: q.platform || null,
     status: q.status,
     tags: q.tags,
     description: q.description,
@@ -166,6 +170,11 @@ async function describe(res) {
     const body = await res.json();
     detail = body.message || body.hint || body.error || '';
   } catch { /* no body */ }
+  if (/column .* does not exist|could not find the .* column/i.test(detail)) {
+    const err = new Error('The database is missing newer columns. Run setup/schema.sql in the Supabase SQL editor, then reload.');
+    err.status = res.status;
+    return err;
+  }
   const text = {
     401: 'Not signed in, or the session expired. Sign in again.',
     403: 'Not allowed. You can only change your own posts.',

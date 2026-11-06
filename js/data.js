@@ -2,6 +2,7 @@
 // is normalized here so the rest of the app can trust its shape.
 
 import { STATUS_KEYS } from './config.js';
+import { DEFAULT_LANGUAGE, isLanguage, isPlatform } from './languages/index.js';
 
 const MAX_TITLE = 200;
 const MAX_TEXT = 20000;
@@ -34,9 +35,12 @@ export function normalizeQuery(raw) {
   const title = text(raw.title, MAX_TITLE);
   const query = text(raw.query, MAX_TEXT);
   if (!title || !query) return null;
+  const language = isLanguage(raw.language) ? raw.language : DEFAULT_LANGUAGE;
   return {
     id: id(raw.id) || newId(),
     title,
+    language,
+    platform: isPlatform(language, raw.platform) ? raw.platform : '',
     status: STATUS_KEYS.includes(raw.status) ? raw.status : 'mostly',
     tags: normalizeTags(raw.tags),
     description: text(raw.description, MAX_TEXT),

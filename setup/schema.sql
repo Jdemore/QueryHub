@@ -34,6 +34,19 @@ create table if not exists public.queries (
 alter table public.queries
   add column if not exists owner_id uuid references public.profiles (id) on delete set null default auth.uid();
 
+-- v3: language per entry, and a platform for KQL entries.
+-- Existing rows become 'kql' through the default.
+alter table public.queries add column if not exists language text not null default 'kql';
+alter table public.queries add column if not exists platform text;
+
+alter table public.queries drop constraint if exists queries_language_check;
+alter table public.queries add constraint queries_language_check
+  check (language in ('kql', 'sql', 'powershell', 'cmd'));
+
+alter table public.queries drop constraint if exists queries_platform_check;
+alter table public.queries add constraint queries_platform_check
+  check (platform is null or (language = 'kql' and platform in ('sentinel', 'defender')));
+
 create table if not exists public.query_votes (
   query_id   text not null references public.queries (id) on delete cascade,
   user_id    uuid not null references public.profiles (id) on delete cascade,

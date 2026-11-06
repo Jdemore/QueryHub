@@ -1,14 +1,14 @@
-// Syntax highlighting: turns KQL text into a DocumentFragment of spans.
+// Syntax highlighting: turns source text into a DocumentFragment of spans.
 // Only class names are generated from token types; the text itself is
-// always inserted as a text node, so query content can never become markup.
+// always inserted as a text node, so content can never become markup.
 
-import { tokenize } from './tokenizer.js';
+import { tokenize } from './languages/index.js';
 
 const PLAIN = new Set(['ws', 'punct', 'ident', 'unknown']);
 
-export function highlightKql(src) {
+export function highlight(src, languageKey) {
   const frag = document.createDocumentFragment();
-  for (const tok of tokenize(src)) {
+  for (const tok of tokenize(src, languageKey)) {
     if (PLAIN.has(tok.type)) {
       frag.append(document.createTextNode(tok.text));
     } else {
