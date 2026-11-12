@@ -49,6 +49,7 @@ export function normalizeQuery(raw) {
     updated: /^\d{4}-\d{2}-\d{2}$/.test(raw.updated || '') ? raw.updated : '',
     ownerId: id(raw.ownerId),
     ownerName: username(raw.ownerName),
+    favorite: raw.favorite === true,
     votes: normalizeVotes(raw.votes),
     comments: normalizeComments(raw.comments),
   };

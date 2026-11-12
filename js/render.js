@@ -7,7 +7,8 @@ import { highlight } from './highlight.js';
 import { getLanguage, platformLabel, lint } from './languages/index.js';
 import { voteSummary } from './data.js';
 
-// view: { user: {id, username, isAdmin} | null, openCommentsFor: id | '', activeTags: [tag] }
+// view: { user: {id, username, isAdmin} | null, openCommentsFor: id | '',
+//         activeTags: [tag], expanded: Set of ids whose body is open }
 export function renderList(container, queries, settings, handlers, view) {
   clear(container);
   if (queries.length === 0) {
@@ -26,9 +27,26 @@ function renderCard(q, settings, handlers, view) {
   const statusLabel = settings.statuses[q.status].label;
   const lintOut = el('ul', { class: 'lint-list', hidden: true });
 
+  const expanded = view.expanded.has(q.id);
+
+  // Collapsed view: title (click to expand), status, favorite star, copy.
   const head = el('header', { class: 'card-head' }, [
-    el('h2', { class: 'card-title', text: q.title }),
+    el('h2', { class: 'card-title' }, [
+      el('button', {
+        type: 'button', class: 'card-toggle', 'aria-expanded': expanded ? 'true' : 'false',
+        onClick: () => handlers.onToggle(q),
+      }, [el('span', { class: 'chevron', 'aria-hidden': 'true' }), q.title]),
+    ]),
     el('span', { class: `badge status-${q.status}`, text: statusLabel, title: 'Status set by the author' }),
+    el('button', {
+      type: 'button',
+      class: q.favorite ? 'fav active' : 'fav',
+      'aria-pressed': q.favorite ? 'true' : 'false',
+      'aria-label': q.favorite ? 'Remove from favorites' : 'Add to favorites',
+      title: q.favorite ? 'Remove from favorites' : 'Add to favorites (shown at the top)',
+      onClick: () => handlers.onFavorite(q, !q.favorite),
+    }),
+    el('button', { type: 'button', class: 'btn btn-small', text: 'Copy', onClick: (e) => copyText(q.query, e.currentTarget) }),
   ]);
 
   const language = getLanguage(q.language);
@@ -59,7 +77,6 @@ function renderCard(q, settings, handlers, view) {
   ]);
 
   const actions = el('div', { class: 'card-actions' }, [
-    el('button', { type: 'button', class: 'btn', text: 'Copy', onClick: (e) => copyText(q.query, e.currentTarget) }),
     el('button', {
       type: 'button', class: 'btn', text: 'Check syntax',
       onClick: () => {
@@ -71,14 +88,15 @@ function renderCard(q, settings, handlers, view) {
     canModify(q, user) ? el('button', { type: 'button', class: 'btn btn-danger', text: 'Delete', onClick: () => handlers.onDelete(q) }) : null,
   ]);
 
-  const card = el('article', { class: `card status-${q.status}`, dataset: { id: q.id } });
-  append(card, [
-    head, meta, description, code, actions, lintOut,
+  const body = el('div', { class: 'card-body', hidden: !expanded }, [
+    meta, description, code, actions, lintOut,
     renderVotes(q, user, handlers),
     renderComments(q, user, handlers, view.openCommentsFor === q.id),
     renderSampleResults(q.sampleResults),
   ]);
-  return card;
+
+  const classes = ['card', `status-${q.status}`, expanded ? 'expanded' : 'collapsed', q.favorite ? 'favorite' : ''];
+  return el('article', { class: classes.filter(Boolean).join(' '), dataset: { id: q.id } }, [head, body]);
 }
 
 function renderVotes(q, user, handlers) {

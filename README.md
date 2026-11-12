@@ -21,6 +21,10 @@ Features:
 - Optional sample results shown as a table under each query.
 - Accounts with a username and a 6-digit PIN, invite-only, no email needed.
 - Authors edit and delete their own queries; the admin can edit anything.
+- Compact list: every entry is collapsed to its title, status, favorite star,
+  and a Copy button. Click the title to open it.
+- Per-account favorites, shown at the top of the list on every device you
+  sign in on.
 - "Works for me" / "Not working" votes with counts and a proportion bar, and
   a comment thread per query. Flagging a query as not working opens the
   thread so the reason can be added.

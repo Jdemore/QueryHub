@@ -14,6 +14,8 @@ const QUERY_SELECT = [
   'owner:profiles!owner_id(username)',
   'votes:query_votes(user_id,vote)',
   'comments:query_comments(id,user_id,body,created_at,author:profiles!user_id(username))',
+  // RLS returns only the signed-in user's own row here, so non-empty means "mine".
+  'favorites:query_favorites(user_id)',
 ].join(',');
 
 export function createDb(cfg) {
@@ -107,6 +109,21 @@ export function createDb(cfg) {
       });
     },
 
+    async setFavorite(token, queryId, userId, on) {
+      if (!on) {
+        await affecting(rest(`query_favorites?query_id=eq.${encodeURIComponent(queryId)}&user_id=eq.${encodeURIComponent(userId)}`), {
+          method: 'DELETE',
+          headers: headers(token, { Prefer: 'return=representation' }),
+        });
+        return;
+      }
+      await request(rest('query_favorites'), {
+        method: 'POST',
+        headers: jsonHeaders(token, 'resolution=merge-duplicates,return=minimal'),
+        body: JSON.stringify([{ query_id: queryId, user_id: userId }]),
+      });
+    },
+
     async addComment(token, queryId, userId, body) {
       await request(rest('query_comments'), {
         method: 'POST',
@@ -138,6 +155,7 @@ function fromRow(row) {
     updated: typeof row.updated_at === 'string' ? row.updated_at.slice(0, 10) : '',
     ownerId: row.owner_id,
     ownerName: row.owner && row.owner.username,
+    favorite: Array.isArray(row.favorites) && row.favorites.length > 0,
     votes: Array.isArray(row.votes) ? row.votes.map((v) => ({ userId: v.user_id, vote: v.vote })) : [],
     comments: Array.isArray(row.comments) ? row.comments.map((c) => ({
       id: c.id,

@@ -20,6 +20,7 @@ const state = {
   themeMode: 'light',
   filter: { text: '', status: 'all', language: 'all', tags: [] },
   openCommentsFor: '',
+  expanded: new Set(), // ids of cards currently opened; everything is collapsed by default
 };
 let auth = null;
 let db = null;
@@ -124,6 +125,17 @@ function buildChips(container, field, entries) {
   }
 }
 
+function toggleExpanded(q) {
+  if (state.expanded.has(q.id)) state.expanded.delete(q.id);
+  else state.expanded.add(q.id);
+  render();
+}
+
+function setFavorite(q, on) {
+  if (!requireSignIn()) return;
+  write((token) => db.setFavorite(token, q.id, state.user.id, on), on ? 'Added to favorites' : 'Removed from favorites');
+}
+
 // Tags are a multi-select filter: clicking one adds it, clicking again removes it.
 function toggleTag(tag) {
   const tags = state.filter.tags;
@@ -172,18 +184,23 @@ function isTyping(target) {
 }
 
 function render() {
-  const visible = filterQueries(state.queries, state.filter);
+  // Favorites first; sort is stable so the newest-updated order holds within each group.
+  const visible = filterQueries(state.queries, state.filter)
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  if (state.openCommentsFor) state.expanded.add(state.openCommentsFor);
   renderList($('#query-list'), visible, state.settings, {
     onEdit: (q) => {
       if (requireSignIn()) editor.open(q);
     },
     onDelete: deleteQuery,
+    onToggle: toggleExpanded,
+    onFavorite: setFavorite,
     onVote: vote,
     onComment: addComment,
     onDeleteComment: deleteComment,
     onSignInPrompt: () => requireSignIn(),
     onTagClick: toggleTag,
-  }, { user: state.user, openCommentsFor: state.openCommentsFor, activeTags: state.filter.tags });
+  }, { user: state.user, openCommentsFor: state.openCommentsFor, activeTags: state.filter.tags, expanded: state.expanded });
   renderTagFilter();
   state.openCommentsFor = '';
   $('#result-count').textContent = `${visible.length} of ${state.queries.length} entries`;

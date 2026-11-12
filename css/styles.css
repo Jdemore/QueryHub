@@ -152,8 +152,42 @@ body {
 .card.status-mostly { border-left-color: var(--status-mostly); }
 .card.status-broken { border-left-color: var(--status-broken); }
 
-.card-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
-.card-title { margin: 0; font-size: 1.1rem; }
+.card.collapsed { padding: 10px 16px; }
+.card-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.card-title { margin: 0; font-size: 1.05rem; flex: 1 1 200px; min-width: 0; }
+.card-toggle {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.card-toggle:hover { color: var(--accent); }
+.card-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.chevron::before { content: "\25B8"; display: inline-block; width: 1em; color: var(--muted); }
+.card-toggle[aria-expanded="true"] .chevron::before { content: "\25BE"; }
+.card-body { display: grid; gap: 10px; }
+.card-body[hidden] { display: none; }
+.btn-small { padding: 3px 10px; font-size: 0.8rem; }
+.fav {
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.fav::before { content: "\2606"; }
+.fav:hover { color: var(--status-mostly); }
+.fav.active { color: var(--status-mostly); }
+.fav.active::before { content: "\2605"; }
 
 .badge {
   color: #fff;

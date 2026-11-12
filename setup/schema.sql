@@ -63,6 +63,14 @@ create table if not exists public.query_comments (
   created_at timestamptz not null default now()
 );
 
+-- v4: per-user favorites. Each user sees only their own rows.
+create table if not exists public.query_favorites (
+  query_id   text not null references public.queries (id) on delete cascade,
+  user_id    uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (query_id, user_id)
+);
+
 -- Private settings (invite code hash). RLS on, no policies: unreadable
 -- through the API. The value is set by setup/secrets.sql, never here.
 create table if not exists public.app_config (
@@ -150,6 +158,7 @@ alter table public.profiles       enable row level security;
 alter table public.queries        enable row level security;
 alter table public.query_votes    enable row level security;
 alter table public.query_comments enable row level security;
+alter table public.query_favorites enable row level security;
 alter table public.app_config     enable row level security;
 
 -- Remove v1 policies and function.
@@ -172,6 +181,7 @@ drop policy if exists "votes delete"     on public.query_votes;
 drop policy if exists "comments read"    on public.query_comments;
 drop policy if exists "comments insert"  on public.query_comments;
 drop policy if exists "comments delete"  on public.query_comments;
+drop policy if exists "favorites own"    on public.query_favorites;
 
 -- Everyone can read usernames, queries, votes, and comments.
 create policy "profiles read" on public.profiles
@@ -213,6 +223,12 @@ create policy "votes update" on public.query_votes
 create policy "votes delete" on public.query_votes
   for delete to authenticated
   using (user_id = auth.uid());
+
+-- Favorites are private: read, add, and remove only your own.
+create policy "favorites own" on public.query_favorites
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- Comments: post as yourself; delete your own, or anything if admin.
 create policy "comments insert" on public.query_comments
